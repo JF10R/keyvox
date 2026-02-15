@@ -171,7 +171,8 @@ keyvox
 1. Run `keyvox`
 2. **Hold** the hotkey (default: Right Ctrl) and speak
 3. **Release** — transcription is pasted into the active window
-4. **ESC** to quit
+4. **Double-tap** the hotkey to paste the last transcription again
+5. **ESC** to quit
 
 ### Switching Models
 
@@ -238,6 +239,9 @@ See [BACKENDS.md](BACKENDS.md) for backend-specific configuration and switching 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `auto_paste` | `true` | Auto-paste via Ctrl+V after transcription |
+| `paste_method` | `type` | Paste method: `type` (no clipboard), `clipboard` (Ctrl+V), `clipboard-restore` (paste + restore) |
+| `double_tap_to_clipboard` | `true` | Enable double-tap to paste last transcription |
+| `double_tap_timeout` | `0.5` | Max seconds between taps to trigger double-tap (0.3-1.0 recommended) |
 
 ## Autostart (Windows)
 
@@ -258,13 +262,11 @@ schtasks /delete /tn "KeyVox" /f
   - [x] **Type mode (no clipboard pollution, default)**
   - [x] **Clipboard mode (traditional Ctrl+V paste)**
   - [x] **Clipboard-restore mode (paste then restore previous clipboard)**
-- [x] **Double-tap to clipboard (tap hotkey twice to copy last transcription)**
-- [x] **Dictionary corrections (case-insensitive word replacements)**
-  - ⚠️ **Needs testing** — verify corrections apply correctly
+- [x] **Double-tap to paste (tap hotkey twice to instantly paste last transcription)** ✅ Tested
+- [x] **Dictionary corrections (case-insensitive word replacements)** ✅ Tested
 - [ ] Visual recording/processing indicator
   - [ ] Show feedback in active input when holding hotkey
   - [ ] Show "processing..." indicator after release, before text appears
-- [ ] Dictionary / word corrections (auto-replace detected words with custom spellings)
 - [ ] System tray icon (runs in background, click to open)
 - [ ] Transcription history panel (timestamped, searchable, copyable)
 - [ ] SQLite-backed history storage
