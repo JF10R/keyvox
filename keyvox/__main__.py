@@ -1,5 +1,6 @@
 """Main entry point for KeyVox."""
 import argparse
+import ctypes
 import sys
 import warnings
 
@@ -13,6 +14,18 @@ from .hotkey import HotkeyManager
 from .dictionary import DictionaryManager
 from .text_insertion import TextInserter
 from .setup_wizard import run_wizard
+
+
+def _configure_windows_app_identity() -> None:
+    """Set a stable app identity so Windows shows KeyVox instead of python."""
+    if sys.platform != "win32":
+        return
+
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("keyvox.app")
+    except Exception:
+        # Optional best-effort call; continue if unavailable.
+        pass
 
 
 def _check_single_instance() -> bool:
@@ -118,16 +131,20 @@ def main() -> None:
             import threading
             import signal
 
-            # Check system tray availability
+            # Create Qt application
+            _configure_windows_app_identity()
+            app = QApplication(sys.argv)
+            app.setQuitOnLastWindowClosed(False)
+            app.setApplicationName("KeyVox")
+            if hasattr(app, "setApplicationDisplayName"):
+                app.setApplicationDisplayName("KeyVox")
+
+            # Check system tray availability (requires QApplication on some setups)
             if not QSystemTrayIcon.isSystemTrayAvailable():
                 print("[WARN] System tray not available on this platform")
                 print("[INFO] Falling back to headless mode")
                 hotkey_manager.run()
                 return
-
-            # Create Qt application
-            app = QApplication(sys.argv)
-            app.setQuitOnLastWindowClosed(False)
 
             # Create tray icon
             tray_icon = KeyVoxTrayIcon()

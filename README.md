@@ -183,6 +183,7 @@ keyvox
 ```
 
 1. System tray icon appears (green circle)
+   - Tray label/tooltip appears as `KeyVox`
 2. **Hold** the hotkey (default: Right Ctrl) and speak (icon turns blue, pulses)
 3. **Release** — icon shows yellow spinner during transcription, then flashes green on success
 4. Text is pasted into the active window

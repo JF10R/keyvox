@@ -25,6 +25,7 @@ class KeyVoxTrayIcon(QSystemTrayIcon):
     def __init__(self, parent=None):
         """Initialize tray icon."""
         super().__init__(parent)
+        self.setToolTip("KeyVox")
 
         self._state = "idle"
         self._phase = 0  # Animation phase (0-100 for pulse, 0-359 for rotation)

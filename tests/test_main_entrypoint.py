@@ -164,11 +164,22 @@ def test_main_gui_mode_initializes_tray_and_shutdowns(monkeypatch):
                 callback(*args, **kwargs)
 
     class FakeApp:
+        last_instance = None
+
         def __init__(self, argv):
             self.aboutToQuit = _Signal()
+            self.app_name = None
+            self.display_name = None
+            FakeApp.last_instance = self
 
         def setQuitOnLastWindowClosed(self, value):
             return None
+
+        def setApplicationName(self, value):
+            self.app_name = value
+
+        def setApplicationDisplayName(self, value):
+            self.display_name = value
 
         def quit(self):
             return None
@@ -265,6 +276,84 @@ def test_main_gui_mode_initializes_tray_and_shutdowns(monkeypatch):
     assert calls["tray_show"] is True
     assert calls["run"] is True
     assert calls["stop"] is True
+    assert FakeApp.last_instance is not None
+    assert FakeApp.last_instance.app_name == "KeyVox"
+    assert FakeApp.last_instance.display_name == "KeyVox"
+
+
+def test_main_gui_creates_qapp_before_tray_availability_check(monkeypatch):
+    cfg = _base_config()
+    state = {"app_created": False, "tray_checked": False, "ran_headless": False}
+
+    class _Signal:
+        def __init__(self):
+            self._callbacks = []
+
+        def connect(self, callback):
+            self._callbacks.append(callback)
+
+    class FakeApp:
+        def __init__(self, argv):
+            state["app_created"] = True
+            self.aboutToQuit = _Signal()
+            self.app_name = None
+            self.display_name = None
+
+        def setQuitOnLastWindowClosed(self, value):
+            return None
+
+        def setApplicationName(self, value):
+            self.app_name = value
+
+        def setApplicationDisplayName(self, value):
+            self.display_name = value
+
+        def exec(self):
+            return 0
+
+    class FakeTraySystem:
+        @staticmethod
+        def isSystemTrayAvailable():
+            # Regression guard: this must run after QApplication construction.
+            assert state["app_created"] is True
+            state["tray_checked"] = True
+            return False
+
+    class FakeHotkeyManager:
+        def __init__(self, **kwargs):
+            self.recording_started = _Signal()
+            self.transcription_started = _Signal()
+            self.transcription_completed = _Signal()
+            self.error_occurred = _Signal()
+
+        def run(self):
+            state["ran_headless"] = True
+
+    fake_pyside = types.ModuleType("PySide6")
+    fake_widgets = types.ModuleType("PySide6.QtWidgets")
+    fake_widgets.QApplication = FakeApp
+    fake_widgets.QSystemTrayIcon = FakeTraySystem
+    fake_core = types.ModuleType("PySide6.QtCore")
+    fake_core.QTimer = object
+    fake_tray_mod = types.ModuleType("keyvox.ui.tray_icon")
+    fake_tray_mod.KeyVoxTrayIcon = object
+
+    monkeypatch.setitem(sys.modules, "PySide6", fake_pyside)
+    monkeypatch.setitem(sys.modules, "PySide6.QtWidgets", fake_widgets)
+    monkeypatch.setitem(sys.modules, "PySide6.QtCore", fake_core)
+    monkeypatch.setitem(sys.modules, "keyvox.ui.tray_icon", fake_tray_mod)
+    monkeypatch.setattr(main_mod, "_check_single_instance", lambda: True)
+    monkeypatch.setattr(main_mod, "load_config", lambda: cfg)
+    monkeypatch.setattr(main_mod, "create_transcriber", lambda config: "TRANSCRIBER")
+    monkeypatch.setattr(main_mod, "AudioRecorder", lambda sample_rate, input_device: object())
+    monkeypatch.setattr(main_mod, "DictionaryManager", types.SimpleNamespace(load_from_config=lambda config: types.SimpleNamespace(corrections={})))
+    monkeypatch.setattr(main_mod, "TextInserter", lambda config, dictionary_corrections: object())
+    monkeypatch.setattr(main_mod, "HotkeyManager", FakeHotkeyManager)
+    monkeypatch.setattr(main_mod.sys, "argv", ["keyvox"])
+
+    main_mod.main()
+    assert state["tray_checked"] is True
+    assert state["ran_headless"] is True
 
 
 def test_main_handles_fatal_exception(monkeypatch):
