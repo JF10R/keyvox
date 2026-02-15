@@ -25,11 +25,14 @@ Hold a hotkey, speak, release — your words are transcribed and pasted into the
 5. **Smart text insertion** — context-aware capitalization, spacing, and URL/domain normalization
 6. **Output** — text copied to clipboard and pasted into the active window
 
+**Implemented UI components:**
+
+7. **System tray** — background operation with visual state feedback (idle, recording, processing, success, error)
+
 **Future components** (see [Roadmap](#roadmap)):
 
-6. **Transcription history** — persistent, searchable log of all transcriptions
-7. **System tray** — background operation with quick-access UI
-8. **Settings UI** — graphical configuration, replacing the CLI wizard
+8. **Transcription history** — persistent, searchable log of all transcriptions
+9. **Settings UI** — graphical configuration, replacing the CLI wizard
 
 This architecture is stack-agnostic — it describes *what* KeyVox does, not *how*. The current implementation uses Python with a **pluggable backend architecture** supporting multiple ASR engines (faster-whisper, Qwen3 ASR, and extensible to others).
 
@@ -150,6 +153,9 @@ pip install faster-whisper
 # AMD/Intel/Universal (qwen-asr)
 pip install qwen-asr
 
+# Optional: GUI support (system tray, visual feedback)
+pip install -e ".[gui]"
+
 # Optional: single-instance protection (Windows)
 pip install -e ".[singleton]"
 ```
@@ -170,12 +176,37 @@ keyvox
 
 ## Usage
 
-1. Run `keyvox`
-2. **Hold** the hotkey (default: Right Ctrl) and speak
-3. **Release** — transcription is pasted into the active window
-4. **Double-tap** the hotkey to paste the last transcription again
-5. **Ctrl+C** to quit (recommended)
-6. **ESC** to quit only when supported and the KeyVox terminal is focused (`ESC` is disabled in Windows Terminal tabs)
+### GUI Mode (Default)
+
+```bash
+keyvox
+```
+
+1. System tray icon appears (green circle)
+2. **Hold** the hotkey (default: Right Ctrl) and speak (icon turns blue, pulses)
+3. **Release** — icon shows yellow spinner during transcription, then flashes green on success
+4. Text is pasted into the active window
+5. **Double-tap** the hotkey to paste the last transcription again
+6. **Right-click** tray icon → Exit to quit
+
+**Visual feedback:**
+- **Green circle** — idle, ready
+- **Blue pulsing** — recording (hold hotkey)
+- **Yellow spinner** — processing transcription
+- **Green checkmark flash** — success
+- **Red X flash** — error
+
+### Headless Mode (CLI-only)
+
+```bash
+keyvox --headless
+```
+
+1. **Hold** the hotkey (default: Right Ctrl) and speak
+2. **Release** — transcription is pasted into the active window
+3. **Double-tap** the hotkey to paste the last transcription again
+4. **Ctrl+C** to quit (recommended)
+5. **ESC** to quit only when supported and the KeyVox terminal is focused (`ESC` is disabled in Windows Terminal tabs)
 
 **Runtime config hot-reload:** Changes to `[dictionary]` and `[text_insertion]` in `config.toml` are applied automatically on the next hotkey release (no app restart required).
 
@@ -349,10 +380,11 @@ schtasks /delete /tn "KeyVox" /f
 - [x] **Smart text insertion (context-aware capitalization and spacing)** ✅ Tested
 - [x] **URL/domain normalization (auto-detect domains and normalize casing, e.g., `Google.com` → `google.com`)** ✅ Tested
 - [x] **Runtime hot-reload for `[dictionary]` and `[text_insertion]`** ✅ Tested
-- [ ] Visual recording/processing indicator
-  - [ ] Show feedback in active input when holding hotkey
-  - [ ] Show "processing..." indicator after release, before text appears
-- [ ] System tray icon (runs in background, click to open)
+- [x] **Visual recording/processing indicator** ✅ Implemented
+  - [x] **System tray icon with 5 states (idle, recording, processing, success, error)** ✅ Implemented
+  - [x] **Animated feedback (blue pulse during recording, yellow spinner during processing)** ✅ Implemented
+  - [x] **Non-blocking transcription (Qt worker threads, no UI freeze)** ✅ Implemented
+  - [x] **GUI/headless mode toggle (--headless flag for CLI-only)** ✅ Implemented
 - [ ] Transcription history panel (timestamped, searchable, copyable)
 - [ ] SQLite-backed history storage
 - [ ] Settings panel (model, mic, hotkey — replaces CLI wizard)
