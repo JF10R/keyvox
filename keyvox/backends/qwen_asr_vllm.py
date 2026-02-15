@@ -24,7 +24,7 @@ class QwenASRVLLMBackend:
         if sys.platform == "win32":
             raise RuntimeError(
                 "vLLM backend is not supported on Windows. "
-                "Use 'qwen-asr' (transformers) backend instead, or run KeyVox on Linux/WSL2.\n"
+                "Use 'qwen-asr' (transformers) backend instead, or run Keyvox on Linux/WSL2.\n"
                 "To switch: set backend = 'qwen-asr' in config.toml"
             )
 
@@ -69,3 +69,4 @@ class QwenASRVLLMBackend:
         except Exception as e:
             print(f"[ERR] Transcription failed: {e}")
             return ""
+

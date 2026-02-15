@@ -1,4 +1,4 @@
-# KeyVox Configuration
+# Keyvox Configuration
 # Copy to config.toml and customize, or run: keyvox --setup
 
 [model]
@@ -119,3 +119,4 @@ add_trailing_space = false
 context_max_chars = 100
 sentence_enders = ".!?"
 punctuation_starters = ",.!?:;'\")}]"
+

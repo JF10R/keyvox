@@ -1,5 +1,5 @@
 /*
- * KeyVox UI - Button Components
+ * Keyvox UI - Button Components
  * Styles for all button types
  */
 
@@ -237,3 +237,4 @@ QPushButton[class="outline"]:hover {
 QPushButton[class="outline"]:pressed {
     background-color: {{BG_ACTIVE}};
 }
+

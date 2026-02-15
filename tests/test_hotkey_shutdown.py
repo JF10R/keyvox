@@ -50,7 +50,7 @@ def test_escape_release_stops_listener():
 
 
 def test_escape_release_ignored_without_focus():
-    """ESC must be ignored when the KeyVox console is not focused."""
+    """ESC must be ignored when the Keyvox console is not focused."""
     manager = _make_manager()
     manager.escape_shutdown_enabled = True
     manager._is_own_console_focused = lambda: False
@@ -130,7 +130,7 @@ def test_run_prints_escape_hint_when_enabled(monkeypatch, capsys):
     monkeypatch.setattr("keyvox.hotkey.keyboard.Listener", QuickExitListener)
     manager.run()
     out = capsys.readouterr().out
-    assert "Press ESC (KeyVox terminal focused) or Ctrl+C to quit" in out
+    assert "Press ESC (Keyvox terminal focused) or Ctrl+C to quit" in out
 
 
 def test_second_ctrl_c_forces_exit(monkeypatch):
@@ -230,3 +230,4 @@ def test_stop_requests_listener_shutdown():
 
     assert manager._stop_requested.is_set() is True
     assert listener.stopped is True
+

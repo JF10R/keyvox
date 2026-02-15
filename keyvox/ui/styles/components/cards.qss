@@ -1,5 +1,5 @@
 /*
- * KeyVox UI - Card Components
+ * Keyvox UI - Card Components
  * Styles for card-based layouts and containers
  */
 
@@ -155,3 +155,4 @@ QLabel[class="status-error"] {
     color: {{ERROR}};
     font-weight: {{WEIGHT_MEDIUM}};
 }
+

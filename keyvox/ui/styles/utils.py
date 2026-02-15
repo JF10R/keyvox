@@ -1,4 +1,4 @@
-"""Theme loader and utility functions for KeyVox UI.
+"""Theme loader and utility functions for Keyvox UI.
 
 This module handles loading QSS stylesheets and replacing token placeholders
 with actual design values from tokens.py.
@@ -38,7 +38,7 @@ def load_qss(filename: str) -> str:
 
 
 def _font_files() -> list[Path]:
-    """Return bundled font files shipped with KeyVox UI."""
+    """Return bundled font files shipped with Keyvox UI."""
     fonts_dir = Path(__file__).resolve().parents[1] / "fonts"
     if not fonts_dir.exists():
         return []
@@ -177,3 +177,4 @@ def clear_cache() -> None:
     global _fonts_loaded
     _qss_cache.clear()
     _fonts_loaded = False
+

@@ -1,6 +1,6 @@
 # Backend Guide
 
-KeyVox supports multiple ASR backends through a model-agnostic architecture. Switch backends by editing `config.toml`.
+Keyvox supports multiple ASR backends through a model-agnostic architecture. Switch backends by editing `config.toml`.
 
 ## Available Backends
 

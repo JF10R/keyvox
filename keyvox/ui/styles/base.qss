@@ -1,5 +1,5 @@
 /*
- * KeyVox UI - Base Stylesheet
+ * Keyvox UI - Base Stylesheet
  * Common styles applied to all themes
  */
 
@@ -267,3 +267,4 @@ QMessageBox {
 QMessageBox QLabel {
     color: {{TEXT_PRIMARY}};
 }
+

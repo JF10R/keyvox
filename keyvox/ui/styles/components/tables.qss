@@ -1,5 +1,5 @@
 /*
- * KeyVox UI - Table Components
+ * Keyvox UI - Table Components
  * Styles for tables, tree views, and list widgets
  */
 
@@ -162,3 +162,4 @@ QColumnView::item:selected {
     background-color: {{BG_ACTIVE}};
     color: {{TEXT_PRIMARY}};
 }
+

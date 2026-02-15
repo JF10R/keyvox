@@ -1,5 +1,5 @@
 /*
- * KeyVox UI - Input Components
+ * Keyvox UI - Input Components
  * Styles for text inputs, dropdowns, sliders, etc.
  */
 
@@ -292,3 +292,4 @@ QCalendarWidget QAbstractItemView {
     selection-background-color: {{ACCENT_PRIMARY}};
     selection-color: {{TEXT_ON_ACCENT}};
 }
+

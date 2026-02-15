@@ -1,6 +1,6 @@
 """Design tokens - single source of truth for all design values.
 
-These tokens define the visual language of KeyVox UI. They are used by the
+These tokens define the visual language of Keyvox UI. They are used by the
 theme loader to generate QSS stylesheets with consistent values across all components.
 """
 import sys
@@ -215,3 +215,4 @@ def get_tokens(theme: str = "dark", profile: str = "auto") -> dict:
         **TRANSITIONS,
         **Z_INDEX,
     }
+

@@ -1,4 +1,4 @@
-"""System tray icon with state-aware animations for KeyVox.
+"""System tray icon with state-aware animations for Keyvox.
 
 Provides visual feedback for recording/processing states via programmatic icons.
 """
@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction
 from keyvox.ui.icons import render_icon
 
 
-class KeyVoxTrayIcon(QSystemTrayIcon):
+class KeyvoxTrayIcon(QSystemTrayIcon):
     """System tray icon with animated state feedback.
 
     States:
@@ -25,7 +25,7 @@ class KeyVoxTrayIcon(QSystemTrayIcon):
     def __init__(self, parent=None):
         """Initialize tray icon."""
         super().__init__(parent)
-        self.setToolTip("KeyVox")
+        self.setToolTip("Keyvox")
 
         self._state = "idle"
         self._phase = 0  # Animation phase (0-100 for pulse, 0-359 for rotation)
@@ -127,3 +127,4 @@ class KeyVoxTrayIcon(QSystemTrayIcon):
     def _on_exit(self) -> None:
         """Handle Exit menu action."""
         QCoreApplication.quit()
+

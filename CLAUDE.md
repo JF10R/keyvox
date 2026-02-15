@@ -1,4 +1,4 @@
-# KeyVox — Project Conventions
+# Keyvox — Project Conventions
 
 ## What is this?
 

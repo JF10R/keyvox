@@ -247,7 +247,7 @@ def test_main_gui_mode_initializes_tray_and_shutdowns(monkeypatch):
     fake_core = types.ModuleType("PySide6.QtCore")
     fake_core.QTimer = FakeTimer
     fake_tray_mod = types.ModuleType("keyvox.ui.tray_icon")
-    fake_tray_mod.KeyVoxTrayIcon = FakeTrayIcon
+    fake_tray_mod.KeyvoxTrayIcon = FakeTrayIcon
 
     monkeypatch.setitem(sys.modules, "PySide6", fake_pyside)
     monkeypatch.setitem(sys.modules, "PySide6.QtWidgets", fake_widgets)
@@ -277,8 +277,8 @@ def test_main_gui_mode_initializes_tray_and_shutdowns(monkeypatch):
     assert calls["run"] is True
     assert calls["stop"] is True
     assert FakeApp.last_instance is not None
-    assert FakeApp.last_instance.app_name == "KeyVox"
-    assert FakeApp.last_instance.display_name == "KeyVox"
+    assert FakeApp.last_instance.app_name == "Keyvox"
+    assert FakeApp.last_instance.display_name == "Keyvox"
 
 
 def test_main_gui_creates_qapp_before_tray_availability_check(monkeypatch):
@@ -336,7 +336,7 @@ def test_main_gui_creates_qapp_before_tray_availability_check(monkeypatch):
     fake_core = types.ModuleType("PySide6.QtCore")
     fake_core.QTimer = object
     fake_tray_mod = types.ModuleType("keyvox.ui.tray_icon")
-    fake_tray_mod.KeyVoxTrayIcon = object
+    fake_tray_mod.KeyvoxTrayIcon = object
 
     monkeypatch.setitem(sys.modules, "PySide6", fake_pyside)
     monkeypatch.setitem(sys.modules, "PySide6.QtWidgets", fake_widgets)
@@ -377,3 +377,4 @@ def test_module_main_guard_executes_main(monkeypatch):
 
     runpy.run_module("keyvox.__main__", run_name="__main__")
     assert called["setup"] is True
+

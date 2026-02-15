@@ -60,7 +60,7 @@ def _list_microphones() -> None:
 def run_wizard() -> None:
     """Run interactive setup wizard."""
     print("=" * 60)
-    print("KeyVox Setup Wizard")
+    print("Keyvox Setup Wizard")
     print("=" * 60)
 
     # Detect GPU
@@ -146,3 +146,4 @@ def run_wizard() -> None:
     print("[OK] Setup complete!")
     print("Run 'keyvox' to start the application")
     print("=" * 60)
+

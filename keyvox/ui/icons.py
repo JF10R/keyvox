@@ -1,4 +1,4 @@
-"""Programmatic icon rendering for KeyVox system tray.
+"""Programmatic icon rendering for Keyvox system tray.
 
 Generates QIcon instances for each application state using QPainter.
 No asset files required - all icons drawn programmatically.
@@ -149,3 +149,4 @@ def _draw_error(painter: QPainter, size: int) -> None:
         int(center + offset), int(center - offset),
         int(center - offset), int(center + offset)
     )
+

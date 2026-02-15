@@ -1,5 +1,5 @@
 /*
- * KeyVox UI - Light Theme
+ * Keyvox UI - Light Theme
  * Inspired by Linear, Raycast
  */
 
@@ -45,3 +45,4 @@ QFrame[frameShape="4"] {
 QFrame[frameShape="5"] {
     color: {{BORDER_DEFAULT}};
 }
+

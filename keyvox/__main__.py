@@ -1,4 +1,4 @@
-"""Main entry point for KeyVox."""
+"""Main entry point for Keyvox."""
 import argparse
 import ctypes
 import sys
@@ -17,7 +17,7 @@ from .setup_wizard import run_wizard
 
 
 def _configure_windows_app_identity() -> None:
-    """Set a stable app identity so Windows shows KeyVox instead of python."""
+    """Set a stable app identity so Windows shows Keyvox instead of python."""
     if sys.platform != "win32":
         return
 
@@ -35,7 +35,7 @@ def _check_single_instance() -> bool:
         import win32api
         import winerror
 
-        mutex = win32event.CreateMutex(None, True, "KeyVox_SingleInstance")
+        mutex = win32event.CreateMutex(None, True, "Keyvox_SingleInstance")
         last_error = win32api.GetLastError()
 
         if last_error == winerror.ERROR_ALREADY_EXISTS:
@@ -49,7 +49,7 @@ def _check_single_instance() -> bool:
 def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="KeyVox - Push-to-talk speech-to-text powered by Whisper"
+        description="Keyvox - Push-to-talk speech-to-text powered by Whisper"
     )
     parser.add_argument(
         "--setup",
@@ -71,7 +71,7 @@ def main() -> None:
 
     # Check for single instance
     if not _check_single_instance():
-        print("[ERR] KeyVox is already running")
+        print("[ERR] Keyvox is already running")
         print("[INFO] Only one instance can run at a time")
         sys.exit(1)
 
@@ -79,7 +79,7 @@ def main() -> None:
     config = load_config()
 
     # Initialize components
-    print("\n[INFO] Initializing KeyVox...")
+    print("\n[INFO] Initializing Keyvox...")
 
     try:
         # Initialize transcriber (loads model into VRAM)
@@ -115,7 +115,7 @@ def main() -> None:
         )
 
         # Start listening
-        print("[OK] KeyVox initialized successfully\n")
+        print("[OK] Keyvox initialized successfully\n")
 
         # Headless mode: original CLI-only behavior
         if args.headless:
@@ -127,7 +127,7 @@ def main() -> None:
         try:
             from PySide6.QtWidgets import QApplication, QSystemTrayIcon
             from PySide6.QtCore import QTimer
-            from keyvox.ui.tray_icon import KeyVoxTrayIcon
+            from keyvox.ui.tray_icon import KeyvoxTrayIcon
             import threading
             import signal
 
@@ -135,9 +135,9 @@ def main() -> None:
             _configure_windows_app_identity()
             app = QApplication(sys.argv)
             app.setQuitOnLastWindowClosed(False)
-            app.setApplicationName("KeyVox")
+            app.setApplicationName("Keyvox")
             if hasattr(app, "setApplicationDisplayName"):
-                app.setApplicationDisplayName("KeyVox")
+                app.setApplicationDisplayName("Keyvox")
 
             # Check system tray availability (requires QApplication on some setups)
             if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -147,7 +147,7 @@ def main() -> None:
                 return
 
             # Create tray icon
-            tray_icon = KeyVoxTrayIcon()
+            tray_icon = KeyvoxTrayIcon()
             tray_icon.show()
 
             # Connect hotkey signals to tray icon
@@ -197,3 +197,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

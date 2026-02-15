@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Professional theme showcase for KeyVox UI system.
+"""Professional theme showcase for Keyvox UI system.
 
-Demonstrates the complete KeyVox theme system including color tokens,
+Demonstrates the complete Keyvox theme system including color tokens,
 typography, component variants, and runtime theme switching.
 
 Usage:
@@ -329,7 +329,7 @@ class ThemeTestWindow(FramelessWindow):
     """Main theme showcase window with runtime theme switching."""
 
     def __init__(self):
-        super().__init__("KeyVox Theme Showcase")
+        super().__init__("Keyvox Theme Showcase")
         self.current_theme = "dark"
         self.setGeometry(100, 100, 1200, 900)
         self._build_ui()
@@ -343,7 +343,7 @@ class ThemeTestWindow(FramelessWindow):
 
         # Top bar: title + theme toggle
         top = QHBoxLayout()
-        title = QLabel("KeyVox Theme Showcase")
+        title = QLabel("Keyvox Theme Showcase")
         title.setProperty("class", "heading")
         top.addWidget(title)
         top.addStretch()
@@ -709,3 +709,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

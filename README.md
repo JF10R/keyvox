@@ -1,4 +1,4 @@
-# KeyVox
+# Keyvox
 
 Push-to-talk speech-to-text powered by Whisper on GPU.
 
@@ -34,11 +34,11 @@ Hold a hotkey, speak, release — your words are transcribed and pasted into the
 8. **Transcription history** — persistent, searchable log of all transcriptions
 9. **Settings UI** — graphical configuration, replacing the CLI wizard
 
-This architecture is stack-agnostic — it describes *what* KeyVox does, not *how*. The current implementation uses Python with a **pluggable backend architecture** supporting multiple ASR engines (faster-whisper, Qwen3 ASR, and extensible to others).
+This architecture is stack-agnostic — it describes *what* Keyvox does, not *how*. The current implementation uses Python with a **pluggable backend architecture** supporting multiple ASR engines (faster-whisper, Qwen3 ASR, and extensible to others).
 
 ## ASR Backends
 
-KeyVox supports multiple ASR backends through a model-agnostic architecture. Choose based on your hardware and needs:
+Keyvox supports multiple ASR backends through a model-agnostic architecture. Choose based on your hardware and needs:
 
 ### faster-whisper (NVIDIA GPUs)
 
@@ -116,7 +116,7 @@ The `.en` variants (`tiny.en`, `base.en`, etc.) are English-only and slightly mo
 
 > **Note:** CUDA Toolkit installation is **not** required. PyTorch bundles its own CUDA runtime. You only need an up-to-date GPU driver.
 
-> **Platform:** KeyVox currently targets **Windows**. Linux and macOS support is planned (see [Roadmap](#roadmap)).
+> **Platform:** Keyvox currently targets **Windows**. Linux and macOS support is planned (see [Roadmap](#roadmap)).
 
 ## Installation
 
@@ -136,7 +136,7 @@ For other versions, see [pytorch.org/get-started](https://pytorch.org/get-starte
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
-### 2. Install KeyVox
+### 2. Install Keyvox
 
 ```bash
 git clone https://github.com/JF10R/keyvox.git
@@ -183,7 +183,7 @@ keyvox
 ```
 
 1. System tray icon appears (green circle)
-   - Tray label/tooltip appears as `KeyVox`
+   - Tray label/tooltip appears as `Keyvox`
 2. **Hold** the hotkey (default: Right Ctrl) and speak (icon turns blue, pulses)
 3. **Release** — icon shows yellow spinner during transcription, then flashes green on success
 4. Text is pasted into the active window
@@ -207,7 +207,7 @@ keyvox --headless
 2. **Release** — transcription is pasted into the active window
 3. **Double-tap** the hotkey to paste the last transcription again
 4. **Ctrl+C** to quit (recommended)
-5. **ESC** to quit only when supported and the KeyVox terminal is focused (`ESC` is disabled in Windows Terminal tabs)
+5. **ESC** to quit only when supported and the Keyvox terminal is focused (`ESC` is disabled in Windows Terminal tabs)
 
 **Runtime config hot-reload:** Changes to `[dictionary]` and `[text_insertion]` in `config.toml` are applied automatically on the next hotkey release (no app restart required).
 
@@ -229,7 +229,7 @@ See [BACKENDS.md](BACKENDS.md) for detailed backend comparison and recommendatio
 
 ## Configuration
 
-KeyVox looks for `config.toml` in this order:
+Keyvox looks for `config.toml` in this order:
 
 | Platform | Locations checked |
 |----------|------------------|
@@ -360,16 +360,22 @@ python test_theme.py
 ## Autostart (Windows)
 
 ```powershell
-schtasks /create /tn "KeyVox" /tr "pythonw -m keyvox" /sc onlogon /rl highest /f
+schtasks /create /tn "Keyvox" /tr "pythonw -m keyvox" /sc onlogon /rl highest /f
 ```
 
 Remove with:
 
 ```powershell
-schtasks /delete /tn "KeyVox" /f
+schtasks /delete /tn "Keyvox" /f
 ```
 
 ## Roadmap
+
+### Current Top Priority
+- [ ] Evaluate frontend decoupling with backend engine wrapper (API/WebSocket) to support Tauri or similar cross-platform UI
+- [ ] Evaluate Tauri migration feasibility for professional cross-platform desktop UX
+- [ ] Text insertion guardrails: do not add a space when cursor is already after a space
+- [ ] Text insertion guardrails: do not add a period when cursor is immediately before an existing period
 
 ### v0.2 — Desktop UI & UX Improvements
 - [x] **Clipboard management modes:**
@@ -443,3 +449,4 @@ schtasks /delete /tn "KeyVox" /f
 ## License
 
 MIT - see [LICENSE](LICENSE).
+

@@ -202,7 +202,7 @@ class HotkeyManager(QObject):
         if self.double_tap_enabled:
             print(f"[INFO] Double-tap {self._hotkey_display_name()} to paste last transcription")
         if self.escape_shutdown_enabled:
-            print("[INFO] Press ESC (KeyVox terminal focused) or Ctrl+C to quit\n")
+            print("[INFO] Press ESC (Keyvox terminal focused) or Ctrl+C to quit\n")
         else:
             print("[INFO] Press Ctrl+C to quit (ESC disabled in Windows Terminal)\n")
 
@@ -245,7 +245,7 @@ class HotkeyManager(QObject):
             listener.stop()
 
     def _is_own_console_focused(self) -> bool:
-        """Return True when this KeyVox console window is currently focused."""
+        """Return True when this Keyvox console window is currently focused."""
         if sys.platform != "win32":
             return True
 
@@ -349,3 +349,4 @@ class HotkeyManager(QObject):
         self.is_processing = False
         self.error_occurred.emit(error_msg)
         print(f"[ERR] Transcription failed: {error_msg}")
+
