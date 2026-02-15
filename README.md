@@ -174,7 +174,7 @@ keyvox
 2. **Hold** the hotkey (default: Right Ctrl) and speak
 3. **Release** — transcription is pasted into the active window
 4. **Double-tap** the hotkey to paste the last transcription again
-5. **ESC** to quit
+5. **ESC** (recommended) or **Ctrl+C** to quit
 
 **Runtime config hot-reload:** Changes to `[dictionary]` and `[text_insertion]` in `config.toml` are applied automatically on the next hotkey release (no app restart required).
 

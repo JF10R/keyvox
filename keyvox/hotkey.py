@@ -145,18 +145,28 @@ class HotkeyManager:
                     pyperclip.copy(text)
                     print("[OK] Text copied to clipboard")
 
+        elif key == Key.esc:
+            print("\n[INFO] Shutting down...")
+            return False  # Stop listener
+
     def run(self) -> None:
         """Start the hotkey listener (blocking)."""
         print(f"[OK] Push-to-Talk enabled - Hold {self._hotkey_display_name()} to speak")
         if self.double_tap_enabled:
             print(f"[INFO] Double-tap {self._hotkey_display_name()} to paste last transcription")
-        print("[INFO] Press Ctrl+C to quit\n")
+        print("[INFO] Press ESC or Ctrl+C to quit\n")
 
         with keyboard.Listener(
             on_press=self._on_press,
             on_release=self._on_release
         ) as listener:
-            listener.join()
+            try:
+                # Timed join keeps the main thread responsive to Ctrl+C.
+                while listener.is_alive():
+                    listener.join(0.2)
+            except KeyboardInterrupt:
+                print("\n[INFO] Interrupted by user, shutting down...")
+                listener.stop()
 
     def _maybe_reload_runtime_config(self) -> None:
         """Hot-reload dictionary/text insertion settings when config changes."""
