@@ -1,6 +1,11 @@
 """Main entry point for KeyVox."""
 import argparse
 import sys
+import warnings
+
+# Suppress transformers FutureWarning about TRANSFORMERS_CACHE
+warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.utils.hub")
+
 from .config import load_config
 from .recorder import AudioRecorder
 from .backends import create_transcriber

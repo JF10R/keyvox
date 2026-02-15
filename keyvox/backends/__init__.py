@@ -76,10 +76,30 @@ def create_transcriber(config: Dict[str, Any]) -> TranscriberBackend:
                 f"Error: {e}"
             )
 
+    elif backend == "qwen-asr-vllm":
+        try:
+            from .qwen_asr_vllm import QwenASRVLLMBackend
+            return QwenASRVLLMBackend(
+                model_name=model_name,
+                device=device,
+                compute_type=compute_type,
+                model_cache=model_cache
+            )
+        except ImportError as e:
+            raise ValueError(
+                f"qwen-asr-vllm backend requires qwen-asr with vLLM (Linux only). "
+                f"Install with: pip install qwen-asr[vllm]\n"
+                f"Note: vLLM is not supported on Windows. Use 'qwen-asr' instead.\n"
+                f"Error: {e}"
+            )
+        except RuntimeError as e:
+            # Platform check failed (Windows)
+            raise ValueError(str(e))
+
     else:
         raise ValueError(
             f"Unknown backend: {backend}. "
-            f"Valid options: 'auto', 'faster-whisper', 'qwen-asr'"
+            f"Valid options: 'auto', 'faster-whisper', 'qwen-asr', 'qwen-asr-vllm'"
         )
 
 

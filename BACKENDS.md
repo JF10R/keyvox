@@ -51,6 +51,26 @@ compute_type = "bfloat16"
 
 ---
 
+### qwen-asr-vllm (Linux only - Experimental)
+
+**Best for:** Linux users wanting fastest Qwen inference
+**Pros:** 2-5x faster than transformers backend via vLLM optimization
+**Cons:** **Linux only** (not supported on Windows), more complex dependencies
+
+> **Platform compatibility:** vLLM requires Linux. Windows users should use `qwen-asr` (transformers) backend.
+
+```toml
+[model]
+backend = "qwen-asr-vllm"
+name = "Qwen/Qwen3-ASR-1.7B"
+device = "cuda"
+compute_type = "bfloat16"
+```
+
+**Install (Linux only):** `pip install qwen-asr[vllm]`
+
+---
+
 ## Auto-Detection
 
 Set `backend = "auto"` to automatically select the best backend:

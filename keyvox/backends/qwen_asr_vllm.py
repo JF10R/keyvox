@@ -1,15 +1,16 @@
-"""Qwen3 ASR backend - supports NVIDIA/AMD/Intel/CPU."""
+"""Qwen3 ASR vLLM backend - optimized inference for all GPUs (Linux only)."""
 import os
+import sys
 import numpy as np
 from typing import Optional
 
 
-class QwenASRBackend:
-    """Qwen3 ASR backend using transformers (PyTorch).
+class QwenASRVLLMBackend:
+    """Qwen3 ASR vLLM-optimized backend (faster than transformers).
 
-    Best for: All GPUs (NVIDIA/AMD/Intel) and CPU
-    Pros: Excellent multilingual quality (52 languages), works on any GPU
-    Cons: Slower than CTranslate2 on NVIDIA, larger memory footprint
+    Best for: All GPUs (NVIDIA/AMD/Intel) and CPU with faster inference
+    Pros: 2-5x faster than transformers backend, same quality, batch processing
+    Cons: More complex dependency (vLLM), version-sensitive
     """
 
     def __init__(
@@ -19,31 +20,31 @@ class QwenASRBackend:
         compute_type: str = "bfloat16",
         model_cache: str = ""
     ):
+        # Check platform - vLLM only supports Linux
+        if sys.platform == "win32":
+            raise RuntimeError(
+                "vLLM backend is not supported on Windows. "
+                "Use 'qwen-asr' (transformers) backend instead, or run KeyVox on Linux/WSL2.\n"
+                "To switch: set backend = 'qwen-asr' in config.toml"
+            )
+
         # Set cache paths BEFORE importing transformers/qwen-asr
         if model_cache:
             os.environ['HF_HOME'] = model_cache
             os.environ['HF_HUB_CACHE'] = os.path.join(model_cache, 'hub')
 
-        import torch
         from qwen_asr import Qwen3ASRModel
 
-        # Map compute_type to torch dtype
-        dtype_map = {
-            "float16": torch.float16,
-            "bfloat16": torch.bfloat16,
-            "float32": torch.float32,
-        }
-        dtype = dtype_map.get(compute_type, torch.bfloat16)
+        print(f"[INFO] Loading Qwen3 ASR model (vLLM): {model_name} on {device}...")
 
-        print(f"[INFO] Loading Qwen3 ASR model: {model_name} on {device}...")
-        self.model = Qwen3ASRModel.from_pretrained(
-            model_name,
-            dtype=dtype,
-            device_map=device if device != "cpu" else None,
+        # vLLM uses .LLM() instead of .from_pretrained()
+        self.model = Qwen3ASRModel.LLM(
+            model=model_name,
+            gpu_memory_utilization=0.7,  # Leave 30% for overhead
             max_inference_batch_size=32,
             max_new_tokens=256,
         )
-        print("[OK] Model loaded and ready")
+        print("[OK] Model loaded and ready (vLLM accelerated)")
 
     def transcribe(self, audio_array: Optional[np.ndarray]) -> str:
         """Transcribe audio to text."""
