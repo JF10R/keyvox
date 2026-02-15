@@ -61,3 +61,29 @@ double_tap_to_clipboard = true
 # - Decrease for faster double-tap detection (e.g., 0.3)
 # - Increase if you accidentally trigger double-taps (e.g., 0.7)
 double_tap_timeout = 0.5
+
+# Dictionary: Post-transcription word corrections
+# - Case-insensitive matching with word boundaries
+# - Example: "github" → "GitHub", "whatsapp" → "WhatsApp"
+# - Useful for brand names, technical terms, product names
+# - Empty by default; add entries below to enable corrections
+#
+# Common use cases:
+# - Brand names: github → GitHub, reactjs → ReactJS
+# - Product names: whatsapp → WhatsApp, slack → Slack
+# - Technical terms: gpu → GPU, cpu → CPU, llm → LLM
+# - Acronyms: api → API, sdk → SDK
+#
+# Performance: <1ms per transcription, no user-visible impact
+[dictionary]
+# Example corrections (uncomment to enable):
+# github = "GitHub"
+# reactjs = "ReactJS"
+# nodejs = "Node.js"
+# whatsapp = "WhatsApp"
+# slack = "Slack"
+# telegram = "Telegram"
+# gpu = "GPU"
+# cpu = "CPU"
+# llm = "LLM"
+# api = "API"

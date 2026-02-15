@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .recorder import AudioRecorder
     from .backends import TranscriberBackend
+    from .dictionary import DictionaryManager
 
 
 # Mapping of string hotkey names to pynput Key objects
@@ -32,6 +33,7 @@ class HotkeyManager:
         hotkey_name: str,
         recorder: "AudioRecorder",
         transcriber: "TranscriberBackend",
+        dictionary: "DictionaryManager",
         auto_paste: bool = True,
         paste_method: str = "type",
         double_tap_to_clipboard: bool = True,
@@ -40,6 +42,7 @@ class HotkeyManager:
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
         self.transcriber = transcriber
+        self.dictionary = dictionary
         self.auto_paste = auto_paste
         self.paste_method = paste_method
         self.kb = Controller()
@@ -84,6 +87,10 @@ class HotkeyManager:
                 return
 
             text = self.transcriber.transcribe(audio)
+
+            # Apply dictionary corrections
+            if text:
+                text = self.dictionary.apply(text)
 
             # Update last transcription and release time
             if text:

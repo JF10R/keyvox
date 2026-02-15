@@ -29,6 +29,7 @@ DEFAULT_CONFIG = {
         "double_tap_to_clipboard": True,
         "double_tap_timeout": 0.5,
     },
+    "dictionary": {},
 }
 
 

@@ -10,6 +10,7 @@ from .config import load_config
 from .recorder import AudioRecorder
 from .backends import create_transcriber
 from .hotkey import HotkeyManager
+from .dictionary import DictionaryManager
 from .setup_wizard import run_wizard
 
 
@@ -71,11 +72,15 @@ def main() -> None:
             input_device=config["audio"]["input_device"]
         )
 
+        # Initialize dictionary
+        dictionary = DictionaryManager.load_from_config(config)
+
         # Initialize hotkey manager
         hotkey_manager = HotkeyManager(
             hotkey_name=config["hotkey"]["push_to_talk"],
             recorder=recorder,
             transcriber=transcriber,
+            dictionary=dictionary,
             auto_paste=config["output"]["auto_paste"],
             paste_method=config["output"]["paste_method"],
             double_tap_to_clipboard=config["output"]["double_tap_to_clipboard"],
