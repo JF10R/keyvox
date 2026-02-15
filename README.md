@@ -29,42 +29,87 @@ Hold a hotkey, speak, release — your words are transcribed and pasted into the
 7. **System tray** — background operation with quick-access UI
 8. **Settings UI** — graphical configuration, replacing the CLI wizard
 
-This architecture is stack-agnostic — it describes *what* KeyVox does, not *how*. The current implementation uses Python + faster-whisper, but the pipeline would be the same in any language.
+This architecture is stack-agnostic — it describes *what* KeyVox does, not *how*. The current implementation uses Python with a **pluggable backend architecture** supporting multiple ASR engines (faster-whisper, Qwen3 ASR, and extensible to others).
+
+## ASR Backends
+
+KeyVox supports multiple ASR backends through a model-agnostic architecture. Choose based on your hardware and needs:
+
+### faster-whisper (NVIDIA GPUs)
+
+**Best for:** NVIDIA GPUs with CUDA
+**Pros:** Fastest inference on NVIDIA, excellent quality, low VRAM usage
+**Cons:** NVIDIA-only
+
+### Qwen3 ASR (Universal)
+
+**Best for:** AMD/Intel GPUs, multilingual workflows, code-switching
+**Pros:** Works on any GPU (NVIDIA/AMD/Intel) and CPU, state-of-the-art multilingual quality (52 languages), handles mid-speech language switches
+**Cons:** Slower than faster-whisper on NVIDIA, larger memory footprint
+
+See [BACKENDS.md](BACKENDS.md) for switching instructions and detailed comparison.
+
+---
 
 ## Available Models
 
-KeyVox uses [OpenAI Whisper](https://github.com/openai/whisper) models via the [faster-whisper](https://github.com/SYSTRAN/faster-whisper) engine (CTranslate2 backend) by default. A pluggable backend architecture (v0.3) will add [whisper.cpp](https://github.com/ggerganov/whisper.cpp) support for AMD/Intel GPUs and CPU-optimized inference. All models are downloaded automatically on first use.
+All models are downloaded automatically on first use to your configured cache directory.
 
-| Model | Parameters | VRAM (float16) | Relative Speed | Quality | Best For |
-|-------|-----------|----------------|----------------|---------|----------|
+### faster-whisper Models
+
+| Model | Parameters | VRAM | Speed | Quality | Best For |
+|-------|-----------|------|-------|---------|----------|
 | `tiny` | 39M | ~1 GB | Fastest | Low | Testing, very low VRAM |
-| `tiny.en` | 39M | ~1 GB | Fastest | Low | English-only, minimal resources |
 | `base` | 74M | ~1 GB | Very fast | Fair | Low VRAM, acceptable accuracy |
-| `base.en` | 74M | ~1 GB | Very fast | Fair | English-only, low VRAM |
 | `small` | 244M | ~2 GB | Fast | Good | Budget GPUs (2-4 GB VRAM) |
-| `small.en` | 244M | ~2 GB | Fast | Good | English-only, budget GPUs |
 | `medium` | 769M | ~5 GB | Moderate | Great | Mid-range GPUs (6+ GB VRAM) |
-| `medium.en` | 769M | ~5 GB | Moderate | Great | English-only, mid-range GPUs |
-| `large-v2` | 1550M | ~10 GB | Slow | Excellent | High-end GPUs, max accuracy |
-| `large-v3` | 1550M | ~10 GB | Slow | Excellent | Latest large model, multilingual |
-| **`large-v3-turbo`** | 809M | ~6 GB | **Fast** | **Excellent** | **Recommended — best speed/quality tradeoff** |
-| `distil-large-v3` | 756M | ~6 GB | Fast | Very good | Distilled, English-focused |
-| `distil-medium.en` | 394M | ~3 GB | Fast | Good | Distilled, English-only |
+| `large-v3` | 1550M | ~10 GB | Slow | Excellent | High-end GPUs, max accuracy |
+| **`large-v3-turbo`** | **809M** | **~6 GB** | **Fast** | **Excellent** | **Recommended for NVIDIA** |
 
-**How to choose:**
-- **6+ GB VRAM:** use `large-v3-turbo` (default) — near large-v3 quality at 2-3x the speed
-- **4-5 GB VRAM:** use `medium`
-- **2-3 GB VRAM:** use `small`
-- **No GPU / CPU only:** use `tiny` or `base` with `device = "cpu"` and `compute_type = "int8"`
+The `.en` variants (`tiny.en`, `base.en`, etc.) are English-only and slightly more accurate for English.
 
-The `.en` variants are English-only and slightly more accurate for English than their multilingual counterparts. Use multilingual models if you speak in multiple languages.
+### Qwen3 ASR Models
+
+| Model | Parameters | VRAM | Speed | Quality | Best For |
+|-------|-----------|------|-------|---------|----------|
+| `Qwen/Qwen3-ASR-0.6B` | 600M | ~3 GB | Fast | Very good | Budget GPUs, good multilingual |
+| **`Qwen/Qwen3-ASR-1.7B`** | **1.7B** | **~6 GB** | **Moderate** | **Excellent** | **Recommended for multilingual/code-switching** |
+
+---
+
+## Model Selection Guide
+
+### By Hardware
+
+| Your GPU | Recommended Backend | Recommended Model | Why |
+|----------|-------------------|------------------|-----|
+| **NVIDIA 6+ GB** | `faster-whisper` | `large-v3-turbo` | Fastest inference, excellent quality |
+| **NVIDIA 4-5 GB** | `faster-whisper` | `medium` | Good balance for mid-range GPUs |
+| **NVIDIA 2-3 GB** | `faster-whisper` | `small` | Fits in VRAM, acceptable quality |
+| **AMD/Intel GPU** | `qwen-asr` | `Qwen/Qwen3-ASR-1.7B` | Only backend supporting non-NVIDIA |
+| **CPU only** | `faster-whisper` | `tiny` or `base` (int8) | Faster than Qwen on CPU |
+
+### By Use Case
+
+| Use Case | Recommended Backend | Recommended Model | Why |
+|----------|-------------------|------------------|-----|
+| **English only** | `faster-whisper` | `large-v3-turbo` | Fastest, excellent English quality |
+| **Single foreign language** | `faster-whisper` | `large-v3-turbo` | Good multilingual support |
+| **Multi-language code-switching** | `qwen-asr` | `Qwen/Qwen3-ASR-1.7B` | State-of-the-art at handling mid-speech language switches |
+| **52 languages/22 Chinese dialects** | `qwen-asr` | `Qwen/Qwen3-ASR-1.7B` | Widest language coverage |
+| **Budget GPU (2-4 GB)** | `faster-whisper` | `small` or `medium` | Best quality for limited VRAM |
+| **Maximum speed** | `faster-whisper` | `base` or `small` | Lowest latency |
+| **Maximum accuracy** | `faster-whisper` | `large-v3` | Best WER, requires 10+ GB VRAM |
 
 ## Prerequisites
 
 - **Python 3.11+**
-- **NVIDIA GPU** with 2+ GB VRAM (recommended, not required — CPU mode works but is slower). AMD/Intel GPU support planned for v0.3 via whisper.cpp backend
+- **GPU** with 2+ GB VRAM (recommended, not required)
+  - **NVIDIA:** Use `faster-whisper` backend (fastest)
+  - **AMD/Intel:** Use `qwen-asr` backend (works on any GPU)
+  - **CPU only:** Both backends work, `faster-whisper` is faster
 
-> **Note:** CUDA Toolkit installation is **not** required. PyTorch bundles its own CUDA runtime. You only need an up-to-date NVIDIA driver.
+> **Note:** CUDA Toolkit installation is **not** required. PyTorch bundles its own CUDA runtime. You only need an up-to-date GPU driver.
 
 > **Platform:** KeyVox currently targets **Windows**. Linux and macOS support is planned (see [Roadmap](#roadmap)).
 
@@ -94,9 +139,16 @@ cd keyvox
 pip install -e .
 ```
 
-Optional single-instance protection (Windows):
+**Choose your backend:**
 
 ```bash
+# NVIDIA GPU (faster-whisper) - default, already installed
+pip install faster-whisper
+
+# AMD/Intel/Universal (qwen-asr)
+pip install qwen-asr
+
+# Optional: single-instance protection (Windows)
 pip install -e ".[singleton]"
 ```
 
@@ -137,9 +189,14 @@ See `config.toml.example` for all options. Key sections:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `name` | `large-v3-turbo` | Whisper model (see [Available Models](#available-models)) |
+| `backend` | `auto` | `auto` (detect best), `faster-whisper`, `qwen-asr` |
+| `name` | `large-v3-turbo` | Model name (see [Available Models](#available-models)) |
 | `device` | `cuda` | `cuda` or `cpu` |
-| `compute_type` | `float16` | `float16` (GPU), `int8` (CPU), `float32` |
+| `compute_type` | `float16` | faster-whisper: `float16`, `int8`, `float32`; qwen-asr: `bfloat16`, `float16`, `float32` |
+
+See [BACKENDS.md](BACKENDS.md) for backend-specific configuration and switching instructions.
+
+> **Note:** Backend and model selection currently requires manual config editing. A future UI update (v0.3) will add a dropdown selector in the settings panel for easy switching.
 
 ### `[audio]`
 
@@ -189,12 +246,13 @@ schtasks /delete /tn "KeyVox" /f
 - [ ] Export transcription history (TXT, CSV)
 
 ### v0.3 — Multi-Backend & Standalone EXE
-- [ ] Model-agnostic backend abstraction (Protocol + factory pattern)
-- [ ] whisper.cpp backend for AMD/Intel/CPU (Vulkan GPU, optimized CPU fallback)
-- [ ] Auto-detect GPU vendor and select best backend
+- [x] **Model-agnostic backend abstraction (Protocol + factory pattern)**
+- [x] **Qwen3 ASR backend for AMD/Intel/NVIDIA/CPU (universal support)**
+- [x] **Auto-detect GPU vendor and select best backend**
+- [ ] UI dropdown for model/backend selection (replaces manual config editing)
+- [ ] whisper.cpp backend (additional option for CPU-optimized inference)
 - [ ] PyInstaller packaging with bundled CUDA runtime
 - [ ] Hardware detection and automatic model recommendation based on VRAM
-- [ ] CPU-optimized mode (int8/q4 quantization, smaller models)
 - [ ] Windows installer (MSI)
 - [ ] Auto-update mechanism
 
