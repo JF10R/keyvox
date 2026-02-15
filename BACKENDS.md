@@ -30,8 +30,10 @@ compute_type = "float16"
 ### qwen-asr (Universal: NVIDIA/AMD/Intel/CPU)
 
 **Best for:** All GPUs (NVIDIA/AMD/Intel) and CPU
-**Pros:** Excellent multilingual quality (52 languages), works on any GPU
-**Cons:** Slower than CTranslate2 on NVIDIA, larger memory footprint
+**Pros:** Excellent multilingual quality (52 languages), works on any GPU, state-of-the-art code-switching
+**Cons:** Slower than CTranslate2 on NVIDIA (~2-3x slower than `large-v3-turbo`, similar to `large-v3`), larger memory footprint
+
+> **Performance note:** On NVIDIA GPUs, `Qwen3-ASR-1.7B` is roughly equivalent in speed to faster-whisper's `large-v3` (non-turbo), but slower than `large-v3-turbo`. The tradeoff is universal GPU support and superior multilingual/code-switching quality. If you don't need those features and have NVIDIA, stick with `large-v3-turbo`.
 
 ```toml
 [model]

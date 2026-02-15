@@ -173,6 +173,22 @@ keyvox
 3. **Release** — transcription is pasted into the active window
 4. **ESC** to quit
 
+### Switching Models
+
+Edit `config.toml` to change backend or model:
+
+```toml
+# Example: Switch from faster-whisper to Qwen3 ASR
+[model]
+backend = "qwen-asr"                    # was: "faster-whisper"
+name = "Qwen/Qwen3-ASR-1.7B"           # was: "large-v3-turbo"
+compute_type = "bfloat16"              # was: "float16"
+```
+
+Restart `keyvox` — the new model downloads automatically on first run.
+
+See [BACKENDS.md](BACKENDS.md) for detailed backend comparison and recommendations.
+
 ## Configuration
 
 KeyVox looks for `config.toml` in this order:
@@ -244,6 +260,10 @@ schtasks /delete /tn "KeyVox" /f
 - [ ] Settings panel (model, mic, hotkey — replaces CLI wizard)
 - [ ] SQLite-backed history storage
 - [ ] Export transcription history (TXT, CSV)
+- [ ] Clipboard management modes:
+  - [ ] Auto-paste on release (current default behavior)
+  - [ ] Copy-only mode (transcription goes to clipboard, no auto-paste)
+  - [ ] Double-tap to paste (tap hotkey twice to paste last transcription)
 
 ### v0.3 — Multi-Backend & Standalone EXE
 - [x] **Model-agnostic backend abstraction (Protocol + factory pattern)**
@@ -270,6 +290,7 @@ schtasks /delete /tn "KeyVox" /f
 - [ ] macOS support (Cmd key, Application Support paths)
 
 ### Future Ideas
+- [ ] Hot words / wake words (always-on listening, activate on keyword)
 - [ ] Streaming transcription (real-time text as you speak)
 - [ ] Speaker diarization (identify who is speaking)
 - [ ] Multi-language auto-detection with per-language dictionaries
