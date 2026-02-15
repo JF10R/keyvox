@@ -11,6 +11,7 @@ DEFAULT_CONFIG = {
         "name": "large-v3-turbo",
         "device": "cuda",
         "compute_type": "float16",
+        "backend": "auto",
     },
     "audio": {
         "input_device": "default",

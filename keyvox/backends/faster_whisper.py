@@ -1,12 +1,16 @@
-"""Transcription module using Faster Whisper."""
+"""Faster Whisper backend (CTranslate2) - NVIDIA GPUs only."""
 import os
 import numpy as np
-from faster_whisper import WhisperModel
 from typing import Optional
 
 
-class Transcriber:
-    """Handles speech-to-text transcription."""
+class FasterWhisperBackend:
+    """NVIDIA GPU backend using faster-whisper (CTranslate2).
+
+    Best for: NVIDIA GPUs with CUDA support
+    Pros: Fastest inference on NVIDIA, excellent quality
+    Cons: NVIDIA-only, requires PyTorch + CUDA
+    """
 
     def __init__(
         self,
@@ -15,12 +19,14 @@ class Transcriber:
         compute_type: str = "float16",
         model_cache: str = ""
     ):
-        # Set cache paths before importing
+        # Set cache paths BEFORE importing faster_whisper
         if model_cache:
             os.environ['HF_HOME'] = model_cache
             os.environ['HF_HUB_CACHE'] = os.path.join(model_cache, 'hub')
 
-        print(f"[INFO] Loading Whisper model: {model_name} on {device}...")
+        from faster_whisper import WhisperModel
+
+        print(f"[INFO] Loading Faster Whisper model: {model_name} on {device}...")
         self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
         print("[OK] Model loaded and ready")
 

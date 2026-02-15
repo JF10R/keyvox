@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .recorder import AudioRecorder
-    from .transcriber import Transcriber
+    from .backends import TranscriberBackend
 
 
 # Mapping of string hotkey names to pynput Key objects
@@ -30,7 +30,7 @@ class HotkeyManager:
         self,
         hotkey_name: str,
         recorder: "AudioRecorder",
-        transcriber: "Transcriber",
+        transcriber: "TranscriberBackend",
         auto_paste: bool = True
     ):
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)

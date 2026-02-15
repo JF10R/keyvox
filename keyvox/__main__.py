@@ -3,7 +3,7 @@ import argparse
 import sys
 from .config import load_config
 from .recorder import AudioRecorder
-from .transcriber import Transcriber
+from .backends import create_transcriber
 from .hotkey import HotkeyManager
 from .setup_wizard import run_wizard
 
@@ -58,12 +58,7 @@ def main() -> None:
 
     try:
         # Initialize transcriber (loads model into VRAM)
-        transcriber = Transcriber(
-            model_name=config["model"]["name"],
-            device=config["model"]["device"],
-            compute_type=config["model"]["compute_type"],
-            model_cache=config["paths"]["model_cache"]
-        )
+        transcriber = create_transcriber(config)
 
         # Initialize recorder
         recorder = AudioRecorder(

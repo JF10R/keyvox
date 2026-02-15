@@ -18,6 +18,9 @@ config.toml
 venv/
 .env
 
+# Local launcher
+keyvox.bat
+
 # OS
 .DS_Store
 Thumbs.db

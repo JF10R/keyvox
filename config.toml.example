@@ -2,11 +2,17 @@
 # Copy to config.toml and customize, or run: keyvox --setup
 
 [model]
-# Whisper model: tiny, base, small, medium, large-v3, large-v3-turbo
+# Backend: "auto" (detect best), "faster-whisper" (NVIDIA only), "qwen-asr" (universal)
+backend = "auto"
+# Model name depends on backend:
+#   faster-whisper: tiny, base, small, medium, large-v3, large-v3-turbo
+#   qwen-asr: Qwen/Qwen3-ASR-0.6B, Qwen/Qwen3-ASR-1.7B
 name = "large-v3-turbo"
 # Device: cuda or cpu
 device = "cuda"
-# Compute type: float16 (GPU), int8 (CPU), float32
+# Compute type:
+#   faster-whisper: float16 (GPU), int8 (CPU), float32
+#   qwen-asr: bfloat16 (recommended), float16, float32
 compute_type = "float16"
 
 [audio]
