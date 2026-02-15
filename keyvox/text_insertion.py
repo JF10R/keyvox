@@ -1,11 +1,12 @@
-"""Smart text insertion with context-aware capitalization and spacing."""
+"""Smart text insertion with capitalization, spacing, and URL normalization."""
 import re
 import sys
+import unicodedata
 from typing import Dict, Optional, Tuple
 
 
 class TextInserter:
-    """Manages context-aware text capitalization and spacing."""
+    """Manages context-aware text capitalization, spacing, and URL normalization."""
 
     def __init__(self, config: dict, dictionary_corrections: Dict[str, str]):
         """
@@ -18,6 +19,7 @@ class TextInserter:
         self.enabled = config.get("enabled", True)
         self.smart_capitalization = config.get("smart_capitalization", True)
         self.smart_spacing = config.get("smart_spacing", True)
+        self.normalize_urls = config.get("normalize_urls", True)
         self.add_trailing_space = config.get("add_trailing_space", False)
         self.context_max_chars = config.get("context_max_chars", 100)
         self.sentence_enders = config.get("sentence_enders", ".!?")
@@ -30,6 +32,15 @@ class TextInserter:
             rf'[{re.escape(self.sentence_enders)}]\s*$'
         )
         self._newline_pattern = re.compile(r'\n\s*$')
+        self._url_pattern = re.compile(
+            r'(?<![\w@])'
+            r'((?:https?://)?(?:www\.)?'
+            r'(?:[0-9A-Za-z\u00C0-\u024F-]+\.)+'
+            r'[A-Za-z\u00C0-\u024F]{2,63}'
+            r'(?:/[^\s]*)?)'
+            r'(?!\w)',
+            re.IGNORECASE,
+        )
 
     def process(self, text: str, preceding_context: Optional[str] = None) -> str:
         """
@@ -56,6 +67,10 @@ class TextInserter:
         # Apply spacing
         if self.smart_spacing:
             text = self._apply_spacing(text, preceding_context)
+
+        # Normalize URL/domain spelling (e.g., remove accents in domains)
+        if self.normalize_urls:
+            text = self._normalize_urls(text)
 
         return text
 
@@ -216,3 +231,36 @@ class TextInserter:
                 add_trailing = True
 
         return add_leading, add_trailing
+
+    def _normalize_urls(self, text: str) -> str:
+        """Normalize URL/domain tokens to ASCII lowercase domains."""
+        return self._url_pattern.sub(lambda m: self._normalize_url_token(m.group(1)), text)
+
+    def _normalize_url_token(self, token: str) -> str:
+        """Normalize a single URL or domain token."""
+        scheme = ""
+        host_and_rest = token
+        token_lower = token.lower()
+
+        if token_lower.startswith("http://"):
+            scheme = "http://"
+            host_and_rest = token[7:]
+        elif token_lower.startswith("https://"):
+            scheme = "https://"
+            host_and_rest = token[8:]
+
+        slash_idx = host_and_rest.find("/")
+        if slash_idx == -1:
+            host = host_and_rest
+            rest = ""
+        else:
+            host = host_and_rest[:slash_idx]
+            rest = host_and_rest[slash_idx:]
+
+        # Convert accented characters to ASCII and enforce lowercase domain.
+        host_ascii = unicodedata.normalize("NFKD", host)
+        host_ascii = "".join(ch for ch in host_ascii if not unicodedata.combining(ch))
+        host_ascii = host_ascii.lower()
+        host_ascii = re.sub(r"[^a-z0-9.-]", "", host_ascii)
+
+        return f"{scheme}{host_ascii}{rest}"

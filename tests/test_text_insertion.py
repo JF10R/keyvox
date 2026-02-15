@@ -11,6 +11,7 @@ def default_config():
         "enabled": True,
         "smart_capitalization": True,
         "smart_spacing": True,
+        "normalize_urls": True,
         "add_trailing_space": False,
         "context_max_chars": 100,
         "sentence_enders": ".!?",
@@ -155,6 +156,39 @@ class TestCombinedFeatures:
         """Add space but don't capitalize mid-sentence."""
         result = text_inserter.process("there", preceding_context="hello")
         assert result == " there"
+
+
+class TestUrlNormalization:
+    """Test automatic URL/domain normalization."""
+
+    def test_normalize_accented_domain(self, text_inserter):
+        """Normalize accented domain to ASCII lowercase."""
+        result = text_inserter.process("Femmedetête.com", preceding_context="")
+        assert result == "femmedetete.com"
+
+    def test_normalize_domain_with_scheme(self, text_inserter):
+        """Normalize domain when URL includes a scheme."""
+        result = text_inserter.process("https://Femmedetête.com/path", preceding_context="")
+        assert result == "https://femmedetete.com/path"
+
+    def test_keep_non_url_text_unchanged(self, text_inserter):
+        """Do not alter accented non-URL text."""
+        result = text_inserter.process("Femmes de tête", preceding_context="")
+        assert result == "Femmes de tête"
+
+    def test_keep_trailing_punctuation(self, text_inserter):
+        """Preserve punctuation around normalized domain."""
+        result = text_inserter.process("Femmedetête.com,", preceding_context="")
+        assert result == "femmedetete.com,"
+
+    def test_disable_url_normalization(self, default_config):
+        """Allow users to disable URL normalization."""
+        config = default_config.copy()
+        config["normalize_urls"] = False
+        inserter = TextInserter(config=config, dictionary_corrections={})
+
+        result = inserter.process("Femmedetête.com", preceding_context="")
+        assert result == "Femmedetête.com"
 
 
 class TestEdgeCases:

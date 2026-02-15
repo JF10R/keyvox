@@ -22,7 +22,7 @@ Hold a hotkey, speak, release — your words are transcribed and pasted into the
 2. **Audio capture** — microphone stream buffered while key is held
 3. **Speech-to-text engine** — Whisper model runs GPU-accelerated inference on the audio
 4. **Dictionary corrections** — case-insensitive word replacements (e.g., "github" → "GitHub")
-5. **Smart text insertion** — context-aware capitalization and spacing
+5. **Smart text insertion** — context-aware capitalization, spacing, and URL/domain normalization
 6. **Output** — text copied to clipboard and pasted into the active window
 
 **Future components** (see [Roadmap](#roadmap)):
@@ -176,6 +176,8 @@ keyvox
 4. **Double-tap** the hotkey to paste the last transcription again
 5. **ESC** to quit
 
+**Runtime config hot-reload:** Changes to `[dictionary]` and `[text_insertion]` in `config.toml` are applied automatically on the next hotkey release (no app restart required).
+
 ### Switching Models
 
 Edit `config.toml` to change backend or model:
@@ -203,6 +205,9 @@ KeyVox looks for `config.toml` in this order:
 | Linux    | `./config.toml`, `$XDG_CONFIG_HOME/keyvox/config.toml` |
 
 See `config.toml.example` for all options. Key sections:
+
+> **Hot-reload scope:** `[dictionary]` and `[text_insertion]` are hot-reloaded at runtime.  
+> **Restart required:** `[model]`, `[audio]`, and backend/device changes.
 
 ### `[model]`
 
@@ -267,6 +272,7 @@ Smart capitalization and spacing based on cursor context:
 | `enabled` | `true` | Enable smart text insertion |
 | `smart_capitalization` | `true` | Auto-capitalize after `. ! ?` and at document start |
 | `smart_spacing` | `true` | Auto-add spaces based on context (no space before punctuation) |
+| `normalize_urls` | `true` | Detect URL/domain-like text and normalize domains to ASCII lowercase (e.g., `Femmedetête.com` → `femmedetete.com`) |
 | `add_trailing_space` | `false` | Add space after sentence-ending punctuation |
 | `context_max_chars` | `100` | Max characters to analyze from clipboard for context |
 | `sentence_enders` | `".!?"` | Characters that end sentences (trigger capitalization) |
@@ -276,6 +282,7 @@ Smart capitalization and spacing based on cursor context:
 
 - **Capitalization:** Detects if cursor is at document start or after sentence-ending punctuation (`. ! ?`), then capitalizes first letter
 - **Spacing:** Adds leading space when continuing mid-word, but not before punctuation or after opening brackets
+- **URL/domain normalization:** Detects URL/domain-like tokens and normalizes domains to ASCII lowercase (`Femmedetête.com` → `femmedetete.com`)
 - **Context detection:** Reads clipboard content (Windows) to determine cursor position context
 - **Dictionary integration:** Respects dictionary casing — won't capitalize "github" at sentence start if dictionary has "GitHub"
 
@@ -315,6 +322,8 @@ schtasks /delete /tn "KeyVox" /f
 - [x] **Double-tap to paste (tap hotkey twice to instantly paste last transcription)** ✅ Tested
 - [x] **Dictionary corrections (case-insensitive word replacements)** ✅ Tested
 - [x] **Smart text insertion (context-aware capitalization and spacing)** ✅ Tested
+- [x] **URL/domain normalization (auto-detect domains and strip diacritics, e.g., `Femmedetête.com` → `femmedetete.com`)** ✅ Tested
+- [x] **Runtime hot-reload for `[dictionary]` and `[text_insertion]`** ✅ Tested
 - [ ] Visual recording/processing indicator
   - [ ] Show feedback in active input when holding hotkey
   - [ ] Show "processing..." indicator after release, before text appears

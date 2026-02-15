@@ -4,6 +4,8 @@ from pynput.keyboard import Key, Controller
 import pyperclip
 import time
 from typing import TYPE_CHECKING, Optional
+from .config import get_config_path, load_config
+from .config_reload import FileReloader
 
 if TYPE_CHECKING:
     from .recorder import AudioRecorder
@@ -56,6 +58,12 @@ class HotkeyManager:
         self.last_release_time = 0.0
         self.last_transcription = ""
         self.last_press_time = 0.0
+        self._config_reloader = FileReloader(
+            path_getter=get_config_path,
+            loader=lambda path: load_config(path=path, quiet=True, raise_on_error=True),
+            min_interval_s=0.5,
+        )
+        self._config_reloader.prime()
 
     def _on_press(self, key):
         """Handle key press events."""
@@ -70,6 +78,7 @@ class HotkeyManager:
         """Handle key release events."""
         if key == self.hotkey:
             current_time = time.time()
+            self._maybe_reload_runtime_config()
 
             # Stop recording and get audio
             audio = self.recorder.stop()
@@ -148,6 +157,25 @@ class HotkeyManager:
             on_release=self._on_release
         ) as listener:
             listener.join()
+
+    def _maybe_reload_runtime_config(self) -> None:
+        """Hot-reload dictionary/text insertion settings when config changes."""
+        try:
+            updated_config = self._config_reloader.poll()
+        except Exception as e:
+            print(f"[WARN] Config hot-reload skipped: {e}")
+            return
+
+        if updated_config is None:
+            return
+
+        self.dictionary = self.dictionary.__class__.load_from_config(updated_config)
+        if self.text_inserter:
+            self.text_inserter = self.text_inserter.__class__(
+                config=updated_config.get("text_insertion", {}),
+                dictionary_corrections=self.dictionary.corrections,
+            )
+        print("[INFO] Hot-reloaded config: dictionary/text_insertion")
 
     def _paste_text(self, text: str) -> None:
         """Paste text using the configured method."""

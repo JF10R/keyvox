@@ -66,6 +66,7 @@ double_tap_timeout = 0.5
 # - Case-insensitive matching with word boundaries
 # - Example: "github" → "GitHub", "whatsapp" → "WhatsApp"
 # - Useful for brand names, technical terms, product names
+# - Hot-reloaded at runtime (applies on next hotkey release)
 # - Empty by default; add entries below to enable corrections
 #
 # Common use cases:
@@ -87,3 +88,27 @@ double_tap_timeout = 0.5
 # cpu = "CPU"
 # llm = "LLM"
 # api = "API"
+
+[text_insertion]
+# Enable smart post-processing of transcribed text
+# Hot-reloaded at runtime (applies on next hotkey release)
+enabled = true
+
+# Auto-capitalize at document start and after sentence endings
+smart_capitalization = true
+
+# Auto-add leading/trailing spacing based on context
+smart_spacing = true
+
+# Normalize detected URLs/domains:
+# - converts accented domains to ASCII (Femmedetête.com -> femmedetete.com)
+# - lowercases domain names
+normalize_urls = true
+
+# Optional trailing space after sentence-ending punctuation
+add_trailing_space = false
+
+# Context analysis settings
+context_max_chars = 100
+sentence_enders = ".!?"
+punctuation_starters = ",.!?:;'\")}]"

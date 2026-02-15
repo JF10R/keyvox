@@ -34,6 +34,7 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "smart_capitalization": True,
         "smart_spacing": True,
+        "normalize_urls": True,
         "add_trailing_space": False,
         "context_max_chars": 100,
         "sentence_enders": ".!?",
@@ -82,22 +83,43 @@ def _find_config_path() -> Path | None:
     return None
 
 
-def load_config() -> Dict[str, Any]:
-    """Load configuration with fallback defaults."""
+def get_config_path() -> Path | None:
+    """Return the resolved config file path, if any."""
+    return _find_config_path()
+
+
+def load_config(
+    path: Path | None = None,
+    *,
+    quiet: bool = False,
+    raise_on_error: bool = False,
+) -> Dict[str, Any]:
+    """Load configuration with fallback defaults.
+
+    Args:
+        path: Optional explicit config path. If omitted, auto-discovery is used.
+        quiet: Suppress non-error informational logs.
+        raise_on_error: Re-raise parsing/loading errors instead of falling back.
+    """
     config = DEFAULT_CONFIG.copy()
 
-    config_path = _find_config_path()
+    config_path = path if path is not None else _find_config_path()
     if config_path:
         try:
             with open(config_path, "rb") as f:
                 user_config = tomllib.load(f)
             config = _merge_configs(config, user_config)
-            print(f"[INFO] Loaded config from: {config_path}")
+            if not quiet:
+                print(f"[INFO] Loaded config from: {config_path}")
         except Exception as e:
+            if raise_on_error:
+                raise
             print(f"[WARN] Failed to load config from {config_path}: {e}")
-            print("[INFO] Using default configuration")
+            if not quiet:
+                print("[INFO] Using default configuration")
     else:
-        print("[INFO] No config.toml found, using defaults")
+        if not quiet:
+            print("[INFO] No config.toml found, using defaults")
 
     return config
 
