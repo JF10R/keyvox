@@ -62,9 +62,9 @@ def test_load_config_raise_on_error_for_invalid_toml(tmp_path):
 def test_load_config_explicit_path_merges_defaults(tmp_path):
     """Explicit path load should merge user config with defaults."""
     cfg = tmp_path / "config.toml"
-    cfg.write_text('[dictionary]\n"cloud.md" = "claude.MD"\n', encoding="utf-8")
+    cfg.write_text('[dictionary]\n"cloud.md" = "CLAUDE.md"\n', encoding="utf-8")
 
     loaded = load_config(path=cfg, quiet=True, raise_on_error=True)
 
-    assert loaded["dictionary"]["cloud.md"] == "claude.MD"
+    assert loaded["dictionary"]["cloud.md"] == "CLAUDE.md"
     assert loaded["text_insertion"]["normalize_urls"] is True

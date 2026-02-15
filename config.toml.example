@@ -101,7 +101,7 @@ smart_capitalization = true
 smart_spacing = true
 
 # Normalize detected URLs/domains:
-# - converts accented domains to ASCII (Femmedetête.com -> femmedetete.com)
+# - normalizes domain casing (Google.com -> google.com)
 # - lowercases domain names
 normalize_urls = true
 
