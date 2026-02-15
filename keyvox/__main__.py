@@ -43,6 +43,11 @@ def main() -> None:
         action="store_true",
         help="Run interactive setup wizard"
     )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run without GUI (CLI mode only)"
+    )
 
     args = parser.parse_args()
 
@@ -98,7 +103,53 @@ def main() -> None:
 
         # Start listening
         print("[OK] KeyVox initialized successfully\n")
-        hotkey_manager.run()
+
+        # Headless mode: original CLI-only behavior
+        if args.headless:
+            print("[INFO] Running in headless mode (no GUI)")
+            hotkey_manager.run()
+            return
+
+        # GUI mode: system tray with visual feedback
+        try:
+            from PySide6.QtWidgets import QApplication
+            from PySide6.QtCore import QSystemTrayIcon
+            from keyvox.ui.tray_icon import KeyVoxTrayIcon
+            import threading
+
+            # Check system tray availability
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                print("[WARN] System tray not available on this platform")
+                print("[INFO] Falling back to headless mode")
+                hotkey_manager.run()
+                return
+
+            # Create Qt application
+            app = QApplication(sys.argv)
+            app.setQuitOnLastWindowClosed(False)
+
+            # Create tray icon
+            tray_icon = KeyVoxTrayIcon()
+            tray_icon.setVisible(True)
+
+            # Connect hotkey signals to tray icon
+            hotkey_manager.recording_started.connect(lambda: tray_icon.set_state("recording"))
+            hotkey_manager.transcription_started.connect(lambda: tray_icon.set_state("processing"))
+            hotkey_manager.transcription_completed.connect(lambda text: tray_icon.flash_success())
+            hotkey_manager.error_occurred.connect(lambda err: tray_icon.flash_error())
+
+            # Start hotkey listener in background thread
+            listener_thread = threading.Thread(target=hotkey_manager.run, daemon=True)
+            listener_thread.start()
+
+            print("[INFO] System tray active (right-click tray icon to exit)")
+            # Run Qt event loop
+            exit_code = app.exec()
+            sys.exit(exit_code)
+
+        except ImportError:
+            print("[WARN] PySide6 not installed, falling back to headless mode")
+            hotkey_manager.run()
 
     except KeyboardInterrupt:
         print("\n[INFO] Interrupted by user")

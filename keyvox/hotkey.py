@@ -7,6 +7,7 @@ from pynput.keyboard import Key, Controller
 import pyperclip
 import time
 from typing import TYPE_CHECKING, Optional
+from PySide6.QtCore import QObject, Signal, QThreadPool
 from .config import get_config_path, load_config
 from .config_reload import FileReloader
 
@@ -15,6 +16,13 @@ if TYPE_CHECKING:
     from .backends import TranscriberBackend
     from .dictionary import DictionaryManager
     from .text_insertion import TextInserter
+
+# Lazy import for GUI mode (TranscriptionWorker uses Qt)
+try:
+    from .ui.transcription_worker import TranscriptionWorker
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
 
 
 # Mapping of string hotkey names to pynput Key objects
@@ -31,8 +39,15 @@ HOTKEY_MAP = {
 }
 
 
-class HotkeyManager:
+class HotkeyManager(QObject):
     """Manages keyboard hotkeys and transcription workflow."""
+
+    # Qt signals for UI integration
+    recording_started = Signal()
+    recording_stopped = Signal()
+    transcription_started = Signal()
+    transcription_completed = Signal(str)
+    error_occurred = Signal(str)
 
     def __init__(
         self,
@@ -46,6 +61,7 @@ class HotkeyManager:
         double_tap_timeout: float = 0.5,
         text_inserter: Optional["TextInserter"] = None
     ):
+        super().__init__()
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
         self.transcriber = transcriber
@@ -61,6 +77,8 @@ class HotkeyManager:
         self.last_release_time = 0.0
         self.last_transcription = ""
         self.last_press_time = 0.0
+        # Processing flag to prevent overlapping transcriptions
+        self.is_processing = False
         # Windows Terminal uses global hooks + tabbed host, so ESC quit is unsafe.
         self.escape_shutdown_enabled = os.getenv("WT_SESSION") is None
         self._config_reloader = FileReloader(
@@ -77,6 +95,7 @@ class HotkeyManager:
             # (ignore key repeat events)
             if not self.recorder.is_recording:
                 self.last_press_time = time.time()
+                self.recording_started.emit()
             self.recorder.start()
 
     def _on_release(self, key):
@@ -87,6 +106,7 @@ class HotkeyManager:
 
             # Stop recording and get audio
             audio = self.recorder.stop()
+            self.recording_stopped.emit()
 
             # Calculate recording duration
             recording_duration = current_time - self.last_press_time
@@ -124,31 +144,47 @@ class HotkeyManager:
                     self.last_release_time = current_time
                 return
 
+            # Prevent overlapping transcriptions
+            if self.is_processing:
+                print("[WARN] Already processing, skipping this recording")
+                return
+
             # Update last release time for double-tap detection (even if transcription is empty)
             if self.double_tap_enabled:
                 self.last_release_time = current_time
 
-            text = self.transcriber.transcribe(audio)
+            # Non-blocking transcription (GUI mode) or blocking (headless mode)
+            if GUI_AVAILABLE:
+                self.is_processing = True
+                self.transcription_started.emit()
 
-            # Apply dictionary corrections
-            if text:
-                text = self.dictionary.apply(text)
+                worker = TranscriptionWorker(audio, self.transcriber, self.dictionary, self.text_inserter)
+                worker.signals.completed.connect(self._on_transcription_done)
+                worker.signals.error.connect(self._on_transcription_error)
+                QThreadPool.globalInstance().start(worker)
+            else:
+                # Headless mode: blocking transcription (original behavior)
+                text = self.transcriber.transcribe(audio)
 
-                # Apply smart text insertion
-                if self.text_inserter:
-                    text = self.text_inserter.process(text)
+                # Apply dictionary corrections
+                if text:
+                    text = self.dictionary.apply(text)
 
-            # Update last transcription (after all processing)
-            if text:
-                if self.double_tap_enabled:
-                    self.last_transcription = text
+                    # Apply smart text insertion
+                    if self.text_inserter:
+                        text = self.text_inserter.process(text)
 
-                # Paste or copy transcription
-                if self.auto_paste:
-                    self._paste_text(text)
-                else:
-                    pyperclip.copy(text)
-                    print("[OK] Text copied to clipboard")
+                # Update last transcription (after all processing)
+                if text:
+                    if self.double_tap_enabled:
+                        self.last_transcription = text
+
+                    # Paste or copy transcription
+                    if self.auto_paste:
+                        self._paste_text(text)
+                    else:
+                        pyperclip.copy(text)
+                        print("[OK] Text copied to clipboard")
 
         elif key == Key.esc:
             if self.escape_shutdown_enabled and self._is_own_console_focused():
@@ -266,3 +302,34 @@ class HotkeyManager:
             if key == self.hotkey:
                 return name.upper()
         return "CTRL_R"
+
+    def _on_transcription_done(self, text: str) -> None:
+        """Handle transcription completion (called in main thread via Qt signal).
+
+        Args:
+            text: Transcribed and processed text from worker
+        """
+        self.is_processing = False
+        self.transcription_completed.emit(text)
+
+        # Update last transcription (worker already applied dictionary/text_inserter)
+        if text:
+            if self.double_tap_enabled:
+                self.last_transcription = text
+
+            # Paste or copy transcription
+            if self.auto_paste:
+                self._paste_text(text)
+            else:
+                pyperclip.copy(text)
+                print("[OK] Text copied to clipboard")
+
+    def _on_transcription_error(self, error_msg: str) -> None:
+        """Handle transcription error (called in main thread via Qt signal).
+
+        Args:
+            error_msg: Error message from worker
+        """
+        self.is_processing = False
+        self.error_occurred.emit(error_msg)
+        print(f"[ERR] Transcription failed: {error_msg}")
