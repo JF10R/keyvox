@@ -25,7 +25,7 @@ QFrame[class="card-compact"] {
 
 /* === Highlighted Card === */
 QFrame[class="card-highlight"] {
-    background-color: {{BG_SECONDARY}};
+    background-color: {{TINT_ACCENT}};
     border: 2px solid {{ACCENT_PRIMARY}};
     border-radius: {{RADIUS_MEDIUM}};
     padding: {{MEDIUM}};
@@ -33,27 +33,27 @@ QFrame[class="card-highlight"] {
 
 /* === Success Card === */
 QFrame[class="card-success"] {
-    background-color: {{BG_SECONDARY}};
+    background-color: {{TINT_SUCCESS}};
     border: 1px solid {{SUCCESS}};
-    border-left: 4px solid {{SUCCESS}};
+    border-left: 1px solid {{SUCCESS}};
     border-radius: {{RADIUS_SMALL}};
     padding: {{MEDIUM}};
 }
 
 /* === Error Card === */
 QFrame[class="card-error"] {
-    background-color: {{BG_SECONDARY}};
+    background-color: {{TINT_ERROR}};
     border: 1px solid {{ERROR}};
-    border-left: 4px solid {{ERROR}};
+    border-left: 1px solid {{ERROR}};
     border-radius: {{RADIUS_SMALL}};
     padding: {{MEDIUM}};
 }
 
 /* === Warning Card === */
 QFrame[class="card-warning"] {
-    background-color: {{BG_SECONDARY}};
+    background-color: {{TINT_WARNING}};
     border: 1px solid {{WARNING}};
-    border-left: 4px solid {{WARNING}};
+    border-left: 1px solid {{WARNING}};
     border-radius: {{RADIUS_SMALL}};
     padding: {{MEDIUM}};
 }
@@ -77,14 +77,13 @@ QFrame[class="card-clickable"] {
 QFrame[class="card-clickable"]:hover {
     background-color: {{BG_HOVER}};
     border-color: {{ACCENT_PRIMARY}};
-    cursor: pointer;
 }
 
 /* === Panel (larger container) === */
 QFrame[class="panel"] {
     background-color: {{BG_SECONDARY}};
     border: 1px solid {{BORDER_DEFAULT}};
-    border-radius: {{RADIUS_MEDIUM}};
+    border-radius: {{RADIUS_LARGE}};
     padding: {{LARGE}};
 }
 

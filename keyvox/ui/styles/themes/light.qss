@@ -10,13 +10,13 @@ QSystemTrayIcon {
 
 /* === Semantic Labels === */
 QLabel[class="heading"] {
-    font-size: {{SIZE_H1}};
+    font-size: {{SIZE_DISPLAY}};
     font-weight: {{WEIGHT_BOLD}};
     color: {{TEXT_PRIMARY}};
 }
 
 QLabel[class="subheading"] {
-    font-size: {{SIZE_H2}};
+    font-size: {{SIZE_BODY}};
     font-weight: {{WEIGHT_MEDIUM}};
     color: {{TEXT_SECONDARY}};
 }

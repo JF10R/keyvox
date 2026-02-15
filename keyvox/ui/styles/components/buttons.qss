@@ -11,7 +11,7 @@ QPushButton {
     border-radius: {{RADIUS_SMALL}};
     padding: {{SMALL}} {{MEDIUM}};
     font-size: {{SIZE_BODY}};
-    min-height: 34px;
+    min-height: 32px;
 }
 
 QPushButton:hover {
@@ -30,8 +30,7 @@ QPushButton:disabled {
 }
 
 QPushButton:focus {
-    outline: 2px solid {{FOCUS_RING}};
-    outline-offset: 1px;
+    border: 2px solid {{BORDER_FOCUS}};
 }
 
 /* === Primary Button (Accent) === */
@@ -60,7 +59,7 @@ QPushButton[class="primary"]:disabled {
 /* === Success Button === */
 QPushButton[class="success"] {
     background-color: {{SUCCESS}};
-    color: {{BG_PRIMARY}};
+    color: {{TEXT_ON_ACCENT}};
     border: 1px solid {{SUCCESS}};
     font-weight: {{WEIGHT_MEDIUM}};
 }
@@ -180,14 +179,6 @@ QRadioButton::indicator:hover {
 QRadioButton::indicator:checked {
     border-color: {{ACCENT_PRIMARY}};
     background-color: {{ACCENT_PRIMARY}};
-}
-
-QRadioButton::indicator:checked::after {
-    content: "";
-    width: 6px;
-    height: 6px;
-    border-radius: 3px;
-    background-color: {{TEXT_ON_ACCENT}};
 }
 
 QRadioButton:disabled {

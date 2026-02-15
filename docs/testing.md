@@ -4,11 +4,11 @@ This repository follows a test-driven workflow and keeps full module-level visib
 
 ## Current Status
 
-- Total tests: **154**
+- Total tests: **172**
 - Previous baseline (at `HEAD` before this test expansion): **51**
-- Tests added: **+103**
+- Tests added: **+121**
 - Coverage command: `python -m pytest --cov=keyvox --cov-report=term-missing -q`
-- Current coverage: **100%** (`812/812` statements)
+- Current coverage: **100%** (`920/920` statements)
 
 ## Test Inventory
 
@@ -25,8 +25,9 @@ This repository follows a test-driven workflow and keeps full module-level visib
 | `tests/test_main_entrypoint.py` | 9 | CLI entrypoint paths and fatal handling |
 | `tests/test_recorder.py` | 6 | Recorder stream lifecycle and audio concatenation |
 | `tests/test_setup_wizard.py` | 8 | Wizard flows, GPU/CPU branches, cache env setup |
-| `tests/test_text_insertion.py` | 51 | Capitalization, spacing, URL normalization, WWW policy |
-| `tests/test_ui_styles.py` | 8 | Theme loading/cache/token replacement |
+| `tests/test_text_insertion.py` | 52 | Capitalization, spacing, URL normalization, WWW policy |
+| `tests/test_ui_styles.py` | 16 | Theme loading/cache/token replacement, font loading, profile resolution |
+| `tests/test_window_chrome.py` | 9 | Borderless window hit-testing and resize geometry |
 
 ## TDD Standard Used
 

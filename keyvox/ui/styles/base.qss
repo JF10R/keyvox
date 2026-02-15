@@ -21,10 +21,86 @@ QWidget {
     color: {{TEXT_PRIMARY}};
 }
 
-/* === Focus Indicators === */
-*:focus {
-    outline: 2px solid {{FOCUS_RING}};
-    outline-offset: 1px;
+QWidget#AppRoot,
+QWidget#ShowcaseContent,
+QWidget#qt_scrollarea_viewport {
+    background-color: {{BG_PRIMARY}};
+}
+
+QWidget#AppRoot {
+    background-color: transparent;
+}
+
+QScrollArea {
+    border: none;
+    background-color: {{BG_PRIMARY}};
+}
+
+QScrollArea > QWidget > QWidget {
+    background-color: {{BG_PRIMARY}};
+}
+
+/* === Borderless Window Chrome === */
+QFrame[class="titlebar"] {
+    background-color: {{BG_ELEVATED}};
+    border: 1px solid {{BORDER_DEFAULT}};
+    border-bottom: none;
+    border-top-left-radius: {{RADIUS_LARGE}};
+    border-top-right-radius: {{RADIUS_LARGE}};
+}
+
+QFrame[class="titlebar"][maximized="true"] {
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+}
+
+QFrame[class="window-body"] {
+    background-color: {{BG_PRIMARY}};
+    border: 1px solid {{BORDER_DEFAULT}};
+    border-top: none;
+    border-bottom-left-radius: {{RADIUS_LARGE}};
+    border-bottom-right-radius: {{RADIUS_LARGE}};
+}
+
+QFrame[class="window-body"][maximized="true"] {
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+}
+
+QLabel[class="titlebar-title"] {
+    color: {{TEXT_PRIMARY}};
+    font-size: {{SIZE_SMALL}};
+    font-weight: {{WEIGHT_MEDIUM}};
+}
+
+QPushButton[class="window-control"] {
+    background-color: transparent;
+    color: {{TEXT_SECONDARY}};
+    border: 1px solid transparent;
+    border-radius: {{RADIUS_SMALL}};
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 0;
+}
+
+QPushButton[class="window-control"]:hover {
+    background-color: {{BG_HOVER}};
+    color: {{TEXT_PRIMARY}};
+}
+
+QPushButton[class="window-control"]:pressed {
+    background-color: {{BG_ACTIVE}};
+}
+
+QPushButton#WindowCloseControl:hover {
+    background-color: {{ERROR}};
+    color: {{TEXT_ON_ACCENT}};
+}
+
+QPushButton#WindowCloseControl:pressed {
+    background-color: {{ERROR}};
 }
 
 /* === Scrollbars === */

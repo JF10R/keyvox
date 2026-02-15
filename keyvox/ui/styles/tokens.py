@@ -3,85 +3,94 @@
 These tokens define the visual language of KeyVox UI. They are used by the
 theme loader to generate QSS stylesheets with consistent values across all components.
 """
+import sys
 
-# Color Palette - Dark Theme
+# Color Palette - Dark Theme (Modern product, high legibility)
 COLORS_DARK = {
     # Backgrounds
-    "BG_PRIMARY": "#18181b",      # Main window (Zinc-900)
-    "BG_SECONDARY": "#1f1f23",    # Cards/panels
-    "BG_TERTIARY": "#27272a",     # Inputs, buttons (Zinc-800)
-    "BG_ELEVATED": "#2c2c31",     # Popovers, dialogs (one step lighter)
-    "BG_HOVER": "#303036",        # Hover states
-    "BG_ACTIVE": "#3f3f46",       # Active/pressed (Zinc-700)
-    "BG_DISABLED": "#27272a",     # Disabled elements
+    "BG_PRIMARY": "#0f1115",      # Window background
+    "BG_SECONDARY": "#151922",    # Cards/panels
+    "BG_TERTIARY": "#1d2430",     # Inputs and controls
+    "BG_ELEVATED": "#232b39",     # Elevated surfaces
+    "BG_HOVER": "#263247",        # Hover states
+    "BG_ACTIVE": "#31405a",       # Active/pressed
+    "BG_DISABLED": "#1b2230",     # Disabled elements
 
     # Borders
-    "BORDER_DEFAULT": "#2e2e33",  # Subtler default borders
-    "BORDER_FOCUS": "#3b82f6",    # Modern blue focus
-    "BORDER_HOVER": "#3f3f46",    # Hover borders
-    "BORDER_DISABLED": "#2e2e33", # Disabled borders
+    "BORDER_DEFAULT": "#2a3446",
+    "BORDER_FOCUS": "#4c8eff",
+    "BORDER_HOVER": "#3c4b66",
+    "BORDER_DISABLED": "#243046",
 
     # Text
-    "TEXT_PRIMARY": "#e4e4e7",    # Primary text (Zinc-200)
-    "TEXT_SECONDARY": "#a1a1aa",  # Secondary text (Zinc-400)
-    "TEXT_TERTIARY": "#71717a",   # Tertiary text (Zinc-500)
-    "TEXT_DISABLED": "#52525b",   # Disabled text (Zinc-600)
-    "TEXT_ON_ACCENT": "#ffffff",  # Text on accent colors
-
-    # Accent Colors
-    "ACCENT_PRIMARY": "#3b82f6",  # Modern blue (Blue-500)
-    "ACCENT_HOVER": "#60a5fa",    # Blue-400
-    "ACCENT_ACTIVE": "#2563eb",   # Blue-600
-    "SUCCESS": "#4ade80",         # Green-400
-    "ERROR": "#f87171",           # Red-400
-    "WARNING": "#fbbf24",         # Amber-400
-
-    # Focus
-    "FOCUS_RING": "#3b82f6",
-    "FOCUS_SHADOW": "rgba(59, 130, 246, 0.4)",
-}
-
-# Color Palette - Light Theme
-COLORS_LIGHT = {
-    # Backgrounds (warm Stone scale)
-    "BG_PRIMARY": "#fafaf9",      # Stone-50
-    "BG_SECONDARY": "#f5f5f4",    # Stone-100
-    "BG_TERTIARY": "#e7e5e4",     # Stone-200
-    "BG_ELEVATED": "#ffffff",     # Pure white for elevated
-    "BG_HOVER": "#f0efed",        # Between Stone-100 and 200
-    "BG_ACTIVE": "#e7e5e4",       # Stone-200
-    "BG_DISABLED": "#f5f5f4",     # Stone-100
-
-    # Borders
-    "BORDER_DEFAULT": "#e7e5e4",  # Stone-200
-    "BORDER_FOCUS": "#3b82f6",    # Same accent blue
-    "BORDER_HOVER": "#d6d3d1",    # Stone-300
-    "BORDER_DISABLED": "#e7e5e4", # Stone-200
-
-    # Text
-    "TEXT_PRIMARY": "#1c1917",    # Stone-900
-    "TEXT_SECONDARY": "#78716c",  # Stone-500
-    "TEXT_TERTIARY": "#a8a29e",   # Stone-400
-    "TEXT_DISABLED": "#d6d3d1",   # Stone-300
+    "TEXT_PRIMARY": "#edf2fb",
+    "TEXT_SECONDARY": "#b4c0d4",
+    "TEXT_TERTIARY": "#8b98ad",
+    "TEXT_DISABLED": "#657389",
     "TEXT_ON_ACCENT": "#ffffff",
 
-    # Accent (same hues, work on light bg)
-    "ACCENT_PRIMARY": "#3b82f6",  # Blue-500
-    "ACCENT_HOVER": "#2563eb",    # Blue-600 (darker on light bg)
-    "ACCENT_ACTIVE": "#1d4ed8",   # Blue-700
-    "SUCCESS": "#22c55e",         # Green-500
-    "ERROR": "#ef4444",           # Red-500
-    "WARNING": "#f59e0b",         # Amber-500
+    # Accent Colors
+    "ACCENT_PRIMARY": "#4c8eff",
+    "ACCENT_HOVER": "#63a0ff",
+    "ACCENT_ACTIVE": "#2f73e4",
+    "SUCCESS": "#34d399",
+    "ERROR": "#fb7185",
+    "WARNING": "#fbbf24",
+    "TINT_ACCENT": "#17243c",
+    "TINT_SUCCESS": "#142b26",
+    "TINT_ERROR": "#341d26",
+    "TINT_WARNING": "#3a3019",
 
     # Focus
-    "FOCUS_RING": "#3b82f6",
-    "FOCUS_SHADOW": "rgba(59, 130, 246, 0.3)",
+    "FOCUS_RING": "#63a0ff",
+    "FOCUS_SHADOW": "rgba(99, 160, 255, 0.45)",
+}
+
+# Color Palette - Light Theme (Soft neutral, professional contrast)
+COLORS_LIGHT = {
+    # Backgrounds
+    "BG_PRIMARY": "#f3f6fb",
+    "BG_SECONDARY": "#f8fafd",
+    "BG_TERTIARY": "#ecf1f8",
+    "BG_ELEVATED": "#ffffff",
+    "BG_HOVER": "#e2eaf5",
+    "BG_ACTIVE": "#d8e2f1",
+    "BG_DISABLED": "#f0f4fa",
+
+    # Borders
+    "BORDER_DEFAULT": "#cfd8e8",
+    "BORDER_FOCUS": "#2f73e4",
+    "BORDER_HOVER": "#bccbe0",
+    "BORDER_DISABLED": "#dbe4f0",
+
+    # Text
+    "TEXT_PRIMARY": "#1b2940",
+    "TEXT_SECONDARY": "#495a75",
+    "TEXT_TERTIARY": "#72839c",
+    "TEXT_DISABLED": "#9ba9bd",
+    "TEXT_ON_ACCENT": "#ffffff",
+
+    # Accent
+    "ACCENT_PRIMARY": "#2f73e4",
+    "ACCENT_HOVER": "#2563c9",
+    "ACCENT_ACTIVE": "#1f52a3",
+    "SUCCESS": "#0f9f6e",
+    "ERROR": "#d63a62",
+    "WARNING": "#c28b06",
+    "TINT_ACCENT": "#e9f1fd",
+    "TINT_SUCCESS": "#e7f6f1",
+    "TINT_ERROR": "#fdebf1",
+    "TINT_WARNING": "#fff6e6",
+
+    # Focus
+    "FOCUS_RING": "#2f73e4",
+    "FOCUS_SHADOW": "rgba(47, 115, 228, 0.35)",
 }
 
 # Typography
 FONTS = {
-    # Font Families (platform-aware stack)
-    "FAMILY_PRIMARY": "Segoe UI, -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+    # Font Families
+    "FAMILY_PRIMARY": "Manrope, 'Segoe UI', Inter, 'Helvetica Neue', Arial, sans-serif",
     "FAMILY_MONOSPACE": "Consolas, Monaco, 'Courier New', monospace",
 
     # Font Sizes (px)
@@ -95,12 +104,31 @@ FONTS = {
     # Font Weights
     "WEIGHT_NORMAL": "400",
     "WEIGHT_MEDIUM": "500",
-    "WEIGHT_BOLD": "600",
+    "WEIGHT_BOLD": "700",
 
     # Line Heights
     "LINE_HEIGHT_TIGHT": "1.2",
     "LINE_HEIGHT_NORMAL": "1.5",
     "LINE_HEIGHT_LOOSE": "1.8",
+}
+
+FONTS_WINDOWS_CRISP = {
+    # Windows-native stack for best hinting and ClearType-like rendering.
+    "FAMILY_PRIMARY": "'Segoe UI Variable Text', 'Segoe UI', Tahoma, Arial, sans-serif",
+    "FAMILY_MONOSPACE": "Consolas, 'Cascadia Mono', 'Courier New', monospace",
+    # Slightly larger defaults for better legibility on desktop LCD.
+    "SIZE_DISPLAY": "26px",
+    "SIZE_H1": "21px",
+    "SIZE_H2": "17px",
+    "SIZE_BODY": "15px",
+    "SIZE_SMALL": "13px",
+    "SIZE_TINY": "11px",
+    "WEIGHT_NORMAL": "400",
+    "WEIGHT_MEDIUM": "600",
+    "WEIGHT_BOLD": "700",
+    "LINE_HEIGHT_TIGHT": "1.25",
+    "LINE_HEIGHT_NORMAL": "1.55",
+    "LINE_HEIGHT_LOOSE": "1.9",
 }
 
 # Spacing (8px base grid)
@@ -150,7 +178,21 @@ Z_INDEX = {
 }
 
 
-def get_tokens(theme: str = "dark") -> dict:
+def resolve_profile(profile: str = "auto") -> str:
+    """Resolve effective token profile.
+
+    Args:
+        profile: "auto", "default", or "windows-crisp"
+    """
+    normalized = (profile or "auto").strip().lower()
+    if normalized not in {"auto", "default", "windows-crisp"}:
+        normalized = "auto"
+    if normalized == "auto":
+        return "windows-crisp" if sys.platform == "win32" else "default"
+    return normalized
+
+
+def get_tokens(theme: str = "dark", profile: str = "auto") -> dict:
     """Get all design tokens for a specific theme.
 
     Args:
@@ -161,10 +203,12 @@ def get_tokens(theme: str = "dark") -> dict:
     """
     colors = COLORS_DARK if theme == "dark" else COLORS_LIGHT
     shadows = SHADOWS_DARK if theme == "dark" else SHADOWS_LIGHT
+    effective_profile = resolve_profile(profile)
+    fonts = FONTS_WINDOWS_CRISP if effective_profile == "windows-crisp" else FONTS
 
     return {
         **colors,
-        **FONTS,
+        **fonts,
         **SPACING,
         **RADIUS,
         **shadows,

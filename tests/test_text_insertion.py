@@ -367,6 +367,29 @@ class TestInternalBranches:
         monkeypatch.setattr(builtins, "__import__", fake_import)
         assert text_inserter._detect_context_windows() == ""
 
+    def test_detect_context_windows_truncates_to_context_max_chars(self, text_inserter, monkeypatch):
+        text_inserter.context_max_chars = 5
+        state = {"opened": False, "closed": False}
+
+        class FakeClipboard:
+            CF_UNICODETEXT = 13
+
+            @staticmethod
+            def OpenClipboard():
+                state["opened"] = True
+
+            @staticmethod
+            def GetClipboardData(_):
+                return "abcdefghi"
+
+            @staticmethod
+            def CloseClipboard():
+                state["closed"] = True
+
+        monkeypatch.setitem(sys.modules, "win32clipboard", FakeClipboard)
+        assert text_inserter._detect_context_windows() == "efghi"
+        assert state == {"opened": True, "closed": True}
+
     def test_apply_capitalization_internal_empty_text(self, text_inserter):
         assert text_inserter._apply_capitalization("", "hello") == ""
 

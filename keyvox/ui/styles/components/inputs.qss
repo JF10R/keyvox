@@ -15,6 +15,10 @@ QLineEdit {
     min-height: 34px;
 }
 
+QLineEdit::placeholder {
+    color: {{TEXT_TERTIARY}};
+}
+
 QLineEdit:hover {
     border-color: {{BORDER_HOVER}};
 }
@@ -217,6 +221,8 @@ QProgressBar {
     border: 1px solid {{BORDER_DEFAULT}};
     border-radius: {{RADIUS_SMALL}};
     height: 20px;
+    color: {{TEXT_PRIMARY}};
+    text-align: center;
 }
 
 QProgressBar::chunk {

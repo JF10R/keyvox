@@ -306,14 +306,23 @@ Result: "Hello, world"  (no space before comma)
 ## Testing
 
 - Full testing guide: [`docs/testing.md`](docs/testing.md)
-- Current suite: **154 tests**
-- Current module coverage (`keyvox/*`): **100%** (`812/812` statements)
+- Current suite: **172 tests**
+- Current module coverage (`keyvox/*`): **100%** (`920/920` statements)
 
 Run locally:
 
 ```bash
 python -m pytest -q
 python -m pytest --cov=keyvox --cov-report=term-missing -q
+```
+
+## UI Theme Showcase
+
+Preview the latest design system (dark/light, borderless shell, component states):
+
+```bash
+pip install -e ".[gui]"
+python test_theme.py
 ```
 
 ## Autostart (Windows)
