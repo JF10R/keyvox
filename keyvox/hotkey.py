@@ -1,4 +1,7 @@
 """Hotkey management and event handling."""
+import ctypes
+import os
+import sys
 from pynput import keyboard
 from pynput.keyboard import Key, Controller
 import pyperclip
@@ -58,6 +61,8 @@ class HotkeyManager:
         self.last_release_time = 0.0
         self.last_transcription = ""
         self.last_press_time = 0.0
+        # Windows Terminal uses global hooks + tabbed host, so ESC quit is unsafe.
+        self.escape_shutdown_enabled = os.getenv("WT_SESSION") is None
         self._config_reloader = FileReloader(
             path_getter=get_config_path,
             loader=lambda path: load_config(path=path, quiet=True, raise_on_error=True),
@@ -146,15 +151,19 @@ class HotkeyManager:
                     print("[OK] Text copied to clipboard")
 
         elif key == Key.esc:
-            print("\n[INFO] Shutting down...")
-            return False  # Stop listener
+            if self.escape_shutdown_enabled and self._is_own_console_focused():
+                print("\n[INFO] Shutting down...")
+                return False  # Stop listener
 
     def run(self) -> None:
         """Start the hotkey listener (blocking)."""
         print(f"[OK] Push-to-Talk enabled - Hold {self._hotkey_display_name()} to speak")
         if self.double_tap_enabled:
             print(f"[INFO] Double-tap {self._hotkey_display_name()} to paste last transcription")
-        print("[INFO] Press ESC or Ctrl+C to quit\n")
+        if self.escape_shutdown_enabled:
+            print("[INFO] Press ESC (KeyVox terminal focused) or Ctrl+C to quit\n")
+        else:
+            print("[INFO] Press Ctrl+C to quit (ESC disabled in Windows Terminal)\n")
 
         with keyboard.Listener(
             on_press=self._on_press,
@@ -167,6 +176,37 @@ class HotkeyManager:
             except KeyboardInterrupt:
                 print("\n[INFO] Interrupted by user, shutting down...")
                 listener.stop()
+                deadline = time.monotonic() + 1.0
+                while listener.is_alive() and time.monotonic() < deadline:
+                    try:
+                        listener.join(0.05)
+                    except KeyboardInterrupt:
+                        print("[WARN] Force exiting now.")
+                        raise SystemExit(130)
+                if listener.is_alive():
+                    print("[WARN] Listener is busy. Press Ctrl+C again to force exit.")
+                    while listener.is_alive():
+                        try:
+                            listener.join(0.2)
+                        except KeyboardInterrupt:
+                            print("[WARN] Force exiting now.")
+                            raise SystemExit(130)
+
+    def _is_own_console_focused(self) -> bool:
+        """Return True when this KeyVox console window is currently focused."""
+        if sys.platform != "win32":
+            return True
+
+        try:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+            console_hwnd = kernel32.GetConsoleWindow()
+            if not console_hwnd:
+                return False
+            return user32.GetForegroundWindow() == console_hwnd
+        except Exception:
+            # Conservative fallback: do not allow global ESC shutdown.
+            return False
 
     def _maybe_reload_runtime_config(self) -> None:
         """Hot-reload dictionary/text insertion settings when config changes."""
