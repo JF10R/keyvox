@@ -136,16 +136,12 @@ class HotkeyManager:
                     pyperclip.copy(text)
                     print("[OK] Text copied to clipboard")
 
-        elif key == Key.esc:
-            print("\n[INFO] Shutting down...")
-            return False  # Stop listener
-
     def run(self) -> None:
         """Start the hotkey listener (blocking)."""
         print(f"[OK] Push-to-Talk enabled - Hold {self._hotkey_display_name()} to speak")
         if self.double_tap_enabled:
             print(f"[INFO] Double-tap {self._hotkey_display_name()} to paste last transcription")
-        print("[INFO] Press ESC to quit\n")
+        print("[INFO] Press Ctrl+C to quit\n")
 
         with keyboard.Listener(
             on_press=self._on_press,
