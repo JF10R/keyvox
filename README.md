@@ -253,17 +253,23 @@ schtasks /delete /tn "KeyVox" /f
 
 ## Roadmap
 
-### v0.2 — Desktop UI
+### v0.2 — Desktop UI & UX Improvements
+- [x] **Clipboard management modes:**
+  - [x] **Type mode (no clipboard pollution, default)**
+  - [x] **Clipboard mode (traditional Ctrl+V paste)**
+  - [x] **Clipboard-restore mode (paste then restore previous clipboard)**
+- [x] **Double-tap to clipboard (tap hotkey twice to copy last transcription)**
+- [x] **Dictionary corrections (case-insensitive word replacements)**
+  - ⚠️ **Needs testing** — verify corrections apply correctly
+- [ ] Visual recording/processing indicator
+  - [ ] Show feedback in active input when holding hotkey
+  - [ ] Show "processing..." indicator after release, before text appears
+- [ ] Dictionary / word corrections (auto-replace detected words with custom spellings)
 - [ ] System tray icon (runs in background, click to open)
 - [ ] Transcription history panel (timestamped, searchable, copyable)
-- [ ] Dictionary / word corrections (auto-replace detected words with custom spellings)
-- [ ] Settings panel (model, mic, hotkey — replaces CLI wizard)
 - [ ] SQLite-backed history storage
+- [ ] Settings panel (model, mic, hotkey — replaces CLI wizard)
 - [ ] Export transcription history (TXT, CSV)
-- [ ] Clipboard management modes:
-  - [ ] Auto-paste on release (current default behavior)
-  - [ ] Copy-only mode (transcription goes to clipboard, no auto-paste)
-  - [ ] Double-tap to paste (tap hotkey twice to paste last transcription)
 
 ### v0.3 — Multi-Backend & Standalone EXE
 - [x] **Model-agnostic backend abstraction (Protocol + factory pattern)**
