@@ -30,5 +30,22 @@ push_to_talk = "ctrl_r"
 model_cache = ""
 
 [output]
-# Auto-paste transcription into active window via Ctrl+V
+# Auto-paste transcription into active window
 auto_paste = true
+
+# Paste method: how to insert transcribed text
+# - "type": Simulate typing (NO clipboard interaction, recommended)
+#   → Clean: your clipboard stays untouched
+#   → Works in 95%+ of apps (browsers, editors, Slack, Discord, etc.)
+#   → May not work in some games or admin-level secure inputs
+#
+# - "clipboard": Paste via Ctrl+V (uses clipboard, simple)
+#   → Text goes to clipboard, then pasted
+#   → Your clipboard will fill with transcriptions
+#   → Works everywhere Ctrl+V works
+#
+# - "clipboard-restore": Paste via Ctrl+V, then restore old clipboard
+#   → Text briefly uses clipboard, then restores previous content
+#   → Clipboard managers will log both the transcription AND restored value (creates duplicates)
+#   → Use if "type" doesn't work in specific apps
+paste_method = "type"

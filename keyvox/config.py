@@ -25,6 +25,7 @@ DEFAULT_CONFIG = {
     },
     "output": {
         "auto_paste": True,
+        "paste_method": "type",
     },
 }
 

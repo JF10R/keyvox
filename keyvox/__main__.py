@@ -76,7 +76,8 @@ def main() -> None:
             hotkey_name=config["hotkey"]["push_to_talk"],
             recorder=recorder,
             transcriber=transcriber,
-            auto_paste=config["output"]["auto_paste"]
+            auto_paste=config["output"]["auto_paste"],
+            paste_method=config["output"]["paste_method"]
         )
 
         # Start listening

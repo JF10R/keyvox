@@ -31,12 +31,14 @@ class HotkeyManager:
         hotkey_name: str,
         recorder: "AudioRecorder",
         transcriber: "TranscriberBackend",
-        auto_paste: bool = True
+        auto_paste: bool = True,
+        paste_method: str = "type"
     ):
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
         self.transcriber = transcriber
         self.auto_paste = auto_paste
+        self.paste_method = paste_method
         self.kb = Controller()
 
     def _on_press(self, key):
@@ -53,17 +55,12 @@ class HotkeyManager:
             # Transcribe
             text = self.transcriber.transcribe(audio)
 
-            # Copy to clipboard and paste if enabled
+            # Paste or copy transcription
             if text:
-                pyperclip.copy(text)
-
                 if self.auto_paste:
-                    self.kb.press(Key.ctrl)
-                    self.kb.press('v')
-                    self.kb.release('v')
-                    self.kb.release(Key.ctrl)
-                    print("[OK] Text pasted")
+                    self._paste_text(text)
                 else:
+                    pyperclip.copy(text)
                     print("[OK] Text copied to clipboard")
 
         elif key == Key.esc:
@@ -80,6 +77,39 @@ class HotkeyManager:
             on_release=self._on_release
         ) as listener:
             listener.join()
+
+    def _paste_text(self, text: str) -> None:
+        """Paste text using the configured method."""
+        if self.paste_method == "type":
+            # Method 1: Simulate typing (no clipboard interaction)
+            self.kb.type(text)
+            print("[OK] Text typed")
+
+        elif self.paste_method == "clipboard":
+            # Method 2: Paste via Ctrl+V (uses clipboard briefly)
+            pyperclip.copy(text)
+            self.kb.press(Key.ctrl)
+            self.kb.press('v')
+            self.kb.release('v')
+            self.kb.release(Key.ctrl)
+            print("[OK] Text pasted via clipboard")
+
+        elif self.paste_method == "clipboard-restore":
+            # Method 3: Paste via Ctrl+V, then restore old clipboard
+            old_clipboard = pyperclip.paste()
+            pyperclip.copy(text)
+            self.kb.press(Key.ctrl)
+            self.kb.press('v')
+            self.kb.release('v')
+            self.kb.release(Key.ctrl)
+            pyperclip.copy(old_clipboard)
+            print("[OK] Text pasted (clipboard restored)")
+
+        else:
+            # Fallback to typing if unknown method
+            print(f"[WARN] Unknown paste_method '{self.paste_method}', falling back to 'type'")
+            self.kb.type(text)
+            print("[OK] Text typed")
 
     def _hotkey_display_name(self) -> str:
         """Get display name for hotkey."""
