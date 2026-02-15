@@ -212,3 +212,21 @@ def test_busy_listener_prints_warning_then_forces_exit(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert excinfo.value.code == 130
     assert "Listener is busy. Press Ctrl+C again to force exit." in out
+
+
+def test_stop_requests_listener_shutdown():
+    manager = _make_manager()
+
+    class DummyListener:
+        def __init__(self):
+            self.stopped = False
+
+        def stop(self):
+            self.stopped = True
+
+    listener = DummyListener()
+    manager._listener = listener
+    manager.stop()
+
+    assert manager._stop_requested.is_set() is True
+    assert listener.stopped is True

@@ -2,6 +2,7 @@
 import ctypes
 import os
 import sys
+import threading
 from pynput import keyboard
 from pynput.keyboard import Key, Controller
 import pyperclip
@@ -87,6 +88,8 @@ class HotkeyManager(QObject):
             min_interval_s=0.5,
         )
         self._config_reloader.prime()
+        self._listener: Optional[keyboard.Listener] = None
+        self._stop_requested = threading.Event()
 
     def _on_press(self, key):
         """Handle key press events."""
@@ -189,10 +192,12 @@ class HotkeyManager(QObject):
         elif key == Key.esc:
             if self.escape_shutdown_enabled and self._is_own_console_focused():
                 print("\n[INFO] Shutting down...")
+                self._stop_requested.set()
                 return False  # Stop listener
 
     def run(self) -> None:
         """Start the hotkey listener (blocking)."""
+        self._stop_requested.clear()
         print(f"[OK] Push-to-Talk enabled - Hold {self._hotkey_display_name()} to speak")
         if self.double_tap_enabled:
             print(f"[INFO] Double-tap {self._hotkey_display_name()} to paste last transcription")
@@ -205,12 +210,14 @@ class HotkeyManager(QObject):
             on_press=self._on_press,
             on_release=self._on_release
         ) as listener:
+            self._listener = listener
             try:
                 # Timed join keeps the main thread responsive to Ctrl+C.
-                while listener.is_alive():
+                while listener.is_alive() and not self._stop_requested.is_set():
                     listener.join(0.2)
             except KeyboardInterrupt:
                 print("\n[INFO] Interrupted by user, shutting down...")
+                self._stop_requested.set()
                 listener.stop()
                 deadline = time.monotonic() + 1.0
                 while listener.is_alive() and time.monotonic() < deadline:
@@ -227,6 +234,15 @@ class HotkeyManager(QObject):
                         except KeyboardInterrupt:
                             print("[WARN] Force exiting now.")
                             raise SystemExit(130)
+            finally:
+                self._listener = None
+
+    def stop(self) -> None:
+        """Request listener shutdown from another thread/event loop."""
+        self._stop_requested.set()
+        listener = self._listener
+        if listener is not None:
+            listener.stop()
 
     def _is_own_console_focused(self) -> bool:
         """Return True when this KeyVox console window is currently focused."""

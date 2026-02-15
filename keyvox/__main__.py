@@ -112,10 +112,11 @@ def main() -> None:
 
         # GUI mode: system tray with visual feedback
         try:
-            from PySide6.QtWidgets import QApplication
-            from PySide6.QtCore import QSystemTrayIcon
+            from PySide6.QtWidgets import QApplication, QSystemTrayIcon
+            from PySide6.QtCore import QTimer
             from keyvox.ui.tray_icon import KeyVoxTrayIcon
             import threading
+            import signal
 
             # Check system tray availability
             if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -130,7 +131,7 @@ def main() -> None:
 
             # Create tray icon
             tray_icon = KeyVoxTrayIcon()
-            tray_icon.setVisible(True)
+            tray_icon.show()
 
             # Connect hotkey signals to tray icon
             hotkey_manager.recording_started.connect(lambda: tray_icon.set_state("recording"))
@@ -141,6 +142,25 @@ def main() -> None:
             # Start hotkey listener in background thread
             listener_thread = threading.Thread(target=hotkey_manager.run, daemon=True)
             listener_thread.start()
+
+            # Keep terminal Ctrl+C usable while Qt event loop is running.
+            def _handle_signal(*_args):
+                app.quit()
+
+            signal.signal(signal.SIGINT, _handle_signal)
+            if hasattr(signal, "SIGTERM"):
+                signal.signal(signal.SIGTERM, _handle_signal)
+
+            signal_pump = QTimer()
+            signal_pump.timeout.connect(lambda: None)
+            signal_pump.start(200)
+
+            def _shutdown() -> None:
+                hotkey_manager.stop()
+                if listener_thread.is_alive():
+                    listener_thread.join(timeout=1.0)
+
+            app.aboutToQuit.connect(_shutdown)
 
             print("[INFO] System tray active (right-click tray icon to exit)")
             # Run Qt event loop

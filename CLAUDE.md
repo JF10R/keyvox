@@ -2,18 +2,29 @@
 
 ## What is this?
 
-Local push-to-talk speech-to-text: hold hotkey, speak, release, text appears in active window. GPU-accelerated via faster-whisper (CTranslate2) or whisper.cpp (Vulkan/CPU). Python package, not an EXE (CUDA version flexibility).
+Local push-to-talk speech-to-text: hold hotkey, speak, release, text appears in active window. GPU-accelerated via faster-whisper (CTranslate2), qwen-asr, or qwen-asr-vllm backends. Python package, not an EXE (CUDA version flexibility).
 
 ## Architecture
 
 ```
 keyvox/
-  __main__.py      # CLI entry point (argparse), single-instance check
-  config.py        # TOML config loading/saving, platform-aware paths
-  recorder.py      # AudioRecorder — sounddevice InputStream wrapper
-  transcriber.py   # Transcriber — faster-whisper model wrapper
-  hotkey.py        # HotkeyManager — pynput listener, paste via Ctrl+V
-  setup_wizard.py  # Interactive --setup: GPU detect, mic list, model recommend
+  __main__.py         # CLI entry point (argparse), single-instance check
+  config.py           # TOML config loading/saving, platform-aware paths
+  config_reload.py    # Hot config reload via file watching
+  recorder.py         # AudioRecorder — sounddevice InputStream wrapper
+  text_insertion.py   # Text insertion abstraction (clipboard + paste)
+  hotkey.py           # HotkeyManager — pynput listener, paste via Ctrl+V
+  setup_wizard.py     # Interactive --setup: GPU detect, mic list, model recommend
+  dictionary.py       # Word corrections post-processing
+  backends/           # Model-agnostic transcriber backends
+    base.py           # TranscriberBackend Protocol
+    __init__.py       # create_transcriber() factory + auto-detect
+    faster_whisper.py # NVIDIA backend (CTranslate2)
+    qwen_asr.py       # Qwen2-Audio ASR backend (cross-platform)
+    qwen_asr_vllm.py  # Qwen2-Audio + vLLM (Linux-only, faster)
+  ui/                 # PySide6 GUI
+    window_chrome.py  # Custom window chrome
+    styles/           # Design system (tokens + utils)
 ```
 
 ## Key decisions
@@ -24,6 +35,8 @@ keyvox/
 - **No emojis in output** — plain markers: `[INFO]`, `[OK]`, `[REC]`, `[ERR]`, `[WARN]`
 - **Config lookup order:** CWD → platform config dir (APPDATA / XDG / Library)
 - **Single instance:** win32event.CreateMutex with ImportError fallback
+- **Hot config reload** — `config_reload.py` watches config.toml for changes
+- **Text insertion abstraction** — `text_insertion.py` separates clipboard/paste from hotkey logic
 
 ## Platform support
 
@@ -34,13 +47,15 @@ keyvox/
 
 | Dependency | Purpose |
 |-----------|---------|
-| `faster-whisper` (optional) | Whisper inference — NVIDIA/CUDA (CTranslate2 backend) |
-| `pywhispercpp` (optional) | Whisper inference — AMD/CPU (whisper.cpp/ggml backend) |
+| `faster-whisper` | Whisper inference — NVIDIA/CUDA (CTranslate2 backend) |
+| `qwen-asr` (dynamic) | Qwen2-Audio ASR — cross-platform (CPU/GPU) |
+| `qwen-asr[vllm]` (dynamic) | Qwen2-Audio + vLLM — Linux-only, optimized inference |
 | `sounddevice` | Mic capture (PortAudio) |
 | `pynput` | Global hotkey + simulated paste |
 | `pyperclip` | Clipboard |
 | `numpy` | Audio array handling |
 | `pywin32` (optional) | Single-instance mutex on Windows |
+| `PySide6` (optional) | GUI framework for tray + settings |
 
 ## Development
 
@@ -51,12 +66,40 @@ keyvox --setup
 keyvox
 ```
 
+## Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=keyvox --cov-report=html --cov-report=term
+
+# Coverage artifacts (add to .gitignore):
+# .coverage, coverage.xml, htmlcov/, .tracecov/
+```
+
+- 103 tests, 100% coverage (as of c76be02)
+- Test files: `tests/test_*.py` pattern
+- No pytest.ini — uses pytest defaults
+
 ## Conventions
 
 - Python 3.11+ (uses `tomllib` from stdlib)
 - Minimal dependencies — no unnecessary abstractions
 - Config via TOML, not CLI flags (CLI only has `--setup`)
 - Hardcoded user paths are a bug — always use empty defaults or platform detection
+
+## .gitignore Notes
+
+Coverage artifacts should be added to .gitignore:
+```
+.coverage
+coverage.xml
+htmlcov/
+.tracecov/
+.pytest_cache/
+```
 
 ## Architecture Decisions (v0.2+)
 
@@ -87,21 +130,22 @@ The transcriber layer uses a **model-agnostic backend abstraction** so the infer
 - **Auto-detection** — `backend = "auto"` detects GPU vendor and picks the best available engine
 - **Lazy imports** — backend dependencies imported only when selected (no hard dep on any engine)
 
-**Backend implementations:**
-- `faster_whisper.py` — NVIDIA GPUs via CTranslate2 (current `transcriber.py` logic, moved here)
-- `whisper_cpp.py` — AMD/Intel/CPU via whisper.cpp (Vulkan for GPU, optimized CPU fallback)
+**Backend implementations (as of v0.3):**
+- `faster_whisper.py` — NVIDIA GPUs via CTranslate2 (Whisper models)
+- `qwen_asr.py` — Qwen2-Audio ASR (cross-platform, CPU/GPU)
+- `qwen_asr_vllm.py` — Qwen2-Audio + vLLM (Linux-only, optimized inference)
 - Future: any ASR engine that implements `transcribe(np.ndarray) -> str`
 
 **Config:**
 ```toml
 [model]
-backend = "auto"  # "auto", "faster-whisper", "whisper-cpp", or future engine names
+backend = "auto"  # "auto", "faster-whisper", "qwen-asr", "qwen-asr-vllm"
 ```
 
 **Dependencies in `pyproject.toml`:**
-- `faster-whisper` moves from hard dep to optional `[nvidia]`
-- `pywhispercpp` added as optional `[universal]`
-- Core package has zero inference engine deps — user installs what they need
+- `faster-whisper` is currently a hard dependency (TODO: make optional)
+- Qwen backends imported dynamically but not in optional deps yet
+- Future: move all backends to optional dependencies based on use case
 
 **Consumer impact:** Only `__main__.py` changes (`Transcriber(...)` -> `create_transcriber(config)`). `hotkey.py`, `recorder.py`, UI — all unchanged. They call `.transcribe()` and don't know or care what engine runs.
 
@@ -118,24 +162,25 @@ backend = "auto"  # "auto", "faster-whisper", "whisper-cpp", or future engine na
 keyvox/
 ├── __init__.py
 ├── __main__.py              # CLI entry + GUI launch (uses create_transcriber)
-├── config.py                # existing (+ backend default)
-├── recorder.py              # existing
-├── hotkey.py                # existing (calls transcriber.transcribe — same interface)
-├── setup_wizard.py          # existing (+ backend detection, recommend install command)
+├── config.py                # TOML config loading/saving
+├── config_reload.py         # v0.2 — hot config reload via file watching
+├── recorder.py              # AudioRecorder wrapper
+├── text_insertion.py        # v0.2 — text insertion abstraction
+├── hotkey.py                # HotkeyManager (calls transcriber.transcribe)
+├── setup_wizard.py          # Interactive setup (+ backend detection)
 ├── dictionary.py            # v0.2 — load/save/apply word corrections
-├── history.py               # v0.2 — SQLite history store
 ├── backends/                # v0.3 — model-agnostic transcriber abstraction
 │   ├── __init__.py          # create_transcriber() factory + auto-detect
 │   ├── base.py              # TranscriberBackend Protocol (one method: transcribe)
-│   ├── faster_whisper.py    # NVIDIA backend (current transcriber.py logic, moved here)
-│   └── whisper_cpp.py       # Universal backend (whisper.cpp via pywhispercpp)
+│   ├── faster_whisper.py    # NVIDIA backend (CTranslate2)
+│   ├── qwen_asr.py          # Qwen2-Audio backend (cross-platform)
+│   └── qwen_asr_vllm.py     # Qwen2-Audio + vLLM (Linux-only)
 └── ui/                      # v0.2 — PySide6 UI
     ├── __init__.py
-    ├── app.py               # QApplication + QSystemTrayIcon
-    ├── main_window.py       # Main panel with tabs
-    ├── history_panel.py     # Transcription history list
-    ├── settings_panel.py    # Model/mic/hotkey config
-    └── dictionary_editor.py # Word corrections table
+    ├── window_chrome.py     # Custom window chrome
+    └── styles/              # Design system
+        ├── tokens.py        # Design tokens
+        └── utils.py         # Style utilities
 ```
 
-**Migration from v0.1:** `transcriber.py` is replaced by `backends/faster_whisper.py` (same code, moved). `__main__.py` changes one line: `Transcriber(...)` -> `create_transcriber(config)`.
+**Migration from v0.1:** `transcriber.py` is replaced by `backends/faster_whisper.py`. `__main__.py` changes one line: `Transcriber(...)` -> `create_transcriber(config)`.
