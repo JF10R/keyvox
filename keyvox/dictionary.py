@@ -22,9 +22,14 @@ class DictionaryManager:
         if not self.corrections:
             return None
 
-        # Escape special regex chars and build alternation
-        escaped_words = [re.escape(word) for word in self.corrections.keys()]
-        pattern_str = r'\b(' + '|'.join(escaped_words) + r')\b'
+        # Escape special regex chars and match outside word contexts.
+        # Length-sort avoids partial matches when keys overlap.
+        escaped_words = sorted(
+            (re.escape(word) for word in self.corrections.keys()),
+            key=len,
+            reverse=True,
+        )
+        pattern_str = r'(?<!\w)(' + '|'.join(escaped_words) + r')(?!\w)'
         return re.compile(pattern_str, re.IGNORECASE)
 
     def apply(self, text: str) -> str:

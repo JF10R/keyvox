@@ -68,3 +68,34 @@ def test_load_config_explicit_path_merges_defaults(tmp_path):
 
     assert loaded["dictionary"]["cloud.md"] == "CLAUDE.md"
     assert loaded["text_insertion"]["normalize_urls"] is True
+
+
+def test_file_reloader_prime_handles_missing_path():
+    reloader = FileReloader(lambda: None, lambda path: "x", min_interval_s=0.0)
+    reloader.prime()
+    assert reloader.poll() is None
+
+
+def test_file_reloader_prime_handles_oserror(monkeypatch, tmp_path):
+    class BrokenPath:
+        def stat(self):
+            raise OSError("broken")
+
+    reloader = FileReloader(lambda: BrokenPath(), lambda path: "x", min_interval_s=0.0)
+    reloader.prime()
+    assert reloader.poll() is None
+
+
+def test_file_reloader_respects_min_interval(monkeypatch, tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("v1", encoding="utf-8")
+    calls = []
+    reloader = FileReloader(lambda: cfg, lambda path: calls.append(path) or "ok", min_interval_s=10.0)
+    reloader.prime()
+    # First poll allowed.
+    assert reloader.poll() is None
+    cfg.write_text("v2", encoding="utf-8")
+    _bump_mtime(cfg)
+    # Should be skipped due to interval gate.
+    assert reloader.poll() is None
+    assert calls == []

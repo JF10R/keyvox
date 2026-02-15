@@ -1,4 +1,6 @@
 """Unit tests for smart text insertion."""
+import builtins
+import sys
 import pytest
 import time
 from keyvox.text_insertion import TextInserter
@@ -323,3 +325,66 @@ class TestContextDetection:
         # Should work without crashing regardless of context
         assert isinstance(result, str)
         assert "hello" in result.lower()  # Text is preserved
+
+
+class TestInternalBranches:
+    """Cover internal fallback branches and edge-only paths."""
+
+    def test_detect_context_non_windows_returns_empty(self, text_inserter, monkeypatch):
+        monkeypatch.setattr("keyvox.text_insertion.sys.platform", "linux", raising=False)
+        assert text_inserter._detect_context() == ""
+
+    def test_detect_context_windows_empty_clipboard_returns_empty(self, text_inserter, monkeypatch):
+        state = {"opened": False, "closed": False}
+
+        class FakeClipboard:
+            CF_UNICODETEXT = 13
+
+            @staticmethod
+            def OpenClipboard():
+                state["opened"] = True
+
+            @staticmethod
+            def GetClipboardData(_):
+                return ""
+
+            @staticmethod
+            def CloseClipboard():
+                state["closed"] = True
+
+        monkeypatch.setitem(sys.modules, "win32clipboard", FakeClipboard)
+        assert text_inserter._detect_context_windows() == ""
+        assert state == {"opened": True, "closed": True}
+
+    def test_detect_context_windows_exception_returns_empty(self, text_inserter, monkeypatch):
+        orig_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "win32clipboard":
+                raise ImportError("missing")
+            return orig_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        assert text_inserter._detect_context_windows() == ""
+
+    def test_apply_capitalization_internal_empty_text(self, text_inserter):
+        assert text_inserter._apply_capitalization("", "hello") == ""
+
+    def test_apply_capitalization_internal_whitespace_text(self, text_inserter):
+        assert text_inserter._apply_capitalization("   ", "hello") == "   "
+
+    def test_should_capitalize_on_newline_without_sentence_ender(self, text_inserter):
+        assert text_inserter._should_capitalize("heading\n") is True
+
+    def test_apply_spacing_internal_empty_text(self, text_inserter):
+        assert text_inserter._apply_spacing("", "abc") == ""
+
+    def test_normalize_http_scheme_url(self, text_inserter):
+        assert text_inserter.process("http://Google.com", preceding_context="") == "http://google.com"
+
+    def test_invalid_www_mode_falls_back_to_explicit_only(self, default_config):
+        config = default_config.copy()
+        config["www_mode"] = "invalid"
+        config.pop("strip_www_prefix", None)
+        inserter = TextInserter(config=config, dictionary_corrections={})
+        assert inserter.www_mode == "explicit_only"

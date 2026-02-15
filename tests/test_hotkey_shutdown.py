@@ -103,6 +103,36 @@ def test_ctrl_c_interrupt_stops_listener(monkeypatch):
     assert FakeListener.last_instance.stopped is True
 
 
+def test_run_prints_escape_hint_when_enabled(monkeypatch, capsys):
+    manager = _make_manager()
+    manager.escape_shutdown_enabled = True
+
+    class QuickExitListener:
+        def __init__(self, on_press, on_release):
+            self.on_press = on_press
+            self.on_release = on_release
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def is_alive(self):
+            return False
+
+        def join(self, timeout=None):
+            return None
+
+        def stop(self):
+            return None
+
+    monkeypatch.setattr("keyvox.hotkey.keyboard.Listener", QuickExitListener)
+    manager.run()
+    out = capsys.readouterr().out
+    assert "Press ESC (KeyVox terminal focused) or Ctrl+C to quit" in out
+
+
 def test_second_ctrl_c_forces_exit(monkeypatch):
     """If listener stays alive after first Ctrl+C, second Ctrl+C must force exit."""
     manager = _make_manager()
@@ -140,3 +170,45 @@ def test_second_ctrl_c_forces_exit(monkeypatch):
         manager.run()
 
     assert excinfo.value.code == 130
+
+
+def test_busy_listener_prints_warning_then_forces_exit(monkeypatch, capsys):
+    manager = _make_manager()
+
+    class BusyListener:
+        def __init__(self, on_press, on_release):
+            self.on_press = on_press
+            self.on_release = on_release
+            self.join_calls = 0
+            self._alive = True
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def is_alive(self):
+            return self._alive
+
+        def join(self, timeout=None):
+            self.join_calls += 1
+            if self.join_calls == 1:
+                raise KeyboardInterrupt()
+            if self.join_calls == 2:
+                raise KeyboardInterrupt()
+
+        def stop(self):
+            # Intentionally stay alive to exercise the busy-listener warning path.
+            return None
+
+    ticks = iter([0.0, 2.0])
+    monkeypatch.setattr("keyvox.hotkey.keyboard.Listener", BusyListener)
+    monkeypatch.setattr("keyvox.hotkey.time.monotonic", lambda: next(ticks))
+
+    with pytest.raises(SystemExit) as excinfo:
+        manager.run()
+
+    out = capsys.readouterr().out
+    assert excinfo.value.code == 130
+    assert "Listener is busy. Press Ctrl+C again to force exit." in out

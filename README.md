@@ -303,6 +303,19 @@ Result: "Hello, world"  (no space before comma)
 
 **Opt-out:** Set `enabled = false` to disable. Feature works on Windows; gracefully degrades on Linux/macOS (no context detection yet).
 
+## Testing
+
+- Full testing guide: [`docs/testing.md`](docs/testing.md)
+- Current suite: **154 tests**
+- Current module coverage (`keyvox/*`): **100%** (`812/812` statements)
+
+Run locally:
+
+```bash
+python -m pytest -q
+python -m pytest --cov=keyvox --cov-report=term-missing -q
+```
+
 ## Autostart (Windows)
 
 ```powershell
