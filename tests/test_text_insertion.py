@@ -12,6 +12,7 @@ def default_config():
         "smart_capitalization": True,
         "smart_spacing": True,
         "normalize_urls": True,
+        "www_mode": "explicit_only",
         "add_trailing_space": False,
         "context_max_chars": 100,
         "sentence_enders": ".!?",
@@ -189,6 +190,49 @@ class TestUrlNormalization:
 
         result = inserter.process("Femmedetête.com", preceding_context="")
         assert result == "Femmedetête.com"
+
+    def test_www_mode_explicit_only_strips_plain_www(self, text_inserter):
+        """explicit_only should strip plain www-prefixed domains."""
+        result = text_inserter.process("www.Google.com", preceding_context="")
+        assert result == "google.com"
+
+    def test_www_mode_explicit_only_keeps_explicit_marker(self, text_inserter):
+        """explicit_only should keep www when explicitly dictated."""
+        result = text_inserter.process("triple w google.com", preceding_context="")
+        assert result == "www.google.com"
+
+    def test_www_mode_explicit_only_keeps_explicit_marker_with_accents(self, text_inserter):
+        """Explicit WWW markers should still normalize accented domains."""
+        result = text_inserter.process("triple w Femmedetête.com", preceding_context="")
+        assert result == "www.femmedetete.com"
+
+    def test_www_mode_never_strip(self, default_config):
+        """never_strip should preserve www prefix."""
+        config = default_config.copy()
+        config["www_mode"] = "never_strip"
+        inserter = TextInserter(config=config, dictionary_corrections={})
+
+        result = inserter.process("www.Google.com", preceding_context="")
+        assert result == "www.google.com"
+
+    def test_www_mode_always_strip(self, default_config):
+        """always_strip should always remove www prefix."""
+        config = default_config.copy()
+        config["www_mode"] = "always_strip"
+        inserter = TextInserter(config=config, dictionary_corrections={})
+
+        result = inserter.process("www.Google.com", preceding_context="")
+        assert result == "google.com"
+
+    def test_www_mode_backward_compatibility_old_flag(self, default_config):
+        """Legacy strip_www_prefix should still be respected."""
+        config = default_config.copy()
+        config.pop("www_mode", None)
+        config["strip_www_prefix"] = False
+        inserter = TextInserter(config=config, dictionary_corrections={})
+
+        result = inserter.process("www.Google.com", preceding_context="")
+        assert result == "www.google.com"
 
 
 class TestEdgeCases:

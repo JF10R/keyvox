@@ -274,6 +274,7 @@ Smart capitalization and spacing based on cursor context:
 | `smart_capitalization` | `true` | Auto-capitalize after `. ! ?` and at document start |
 | `smart_spacing` | `true` | Auto-add spaces based on context (no space before punctuation) |
 | `normalize_urls` | `true` | Detect URL/domain-like text and normalize domains to ASCII lowercase (e.g., `Google.com` → `google.com`) |
+| `www_mode` | `"explicit_only"` | Controls `www.` handling: `explicit_only` (keep only on explicit dictation), `always_strip`, or `never_strip` |
 | `add_trailing_space` | `false` | Add space after sentence-ending punctuation |
 | `context_max_chars` | `100` | Max characters to analyze from clipboard for context |
 | `sentence_enders` | `".!?"` | Characters that end sentences (trigger capitalization) |
@@ -284,6 +285,7 @@ Smart capitalization and spacing based on cursor context:
 - **Capitalization:** Detects if cursor is at document start or after sentence-ending punctuation (`. ! ?`), then capitalizes first letter
 - **Spacing:** Adds leading space when continuing mid-word, but not before punctuation or after opening brackets
 - **URL/domain normalization:** Detects URL/domain-like tokens and normalizes domains to ASCII lowercase (`Google.com` → `google.com`)
+- **WWW handling (`www_mode`):** In `explicit_only`, `www.` is kept only for explicit markers like `triple w google.com` (`www.Google.com` alone normalizes to `google.com`)
 - **Context detection:** Reads clipboard content (Windows) to determine cursor position context
 - **Dictionary integration:** Respects dictionary casing — won't capitalize "github" at sentence start if dictionary has "GitHub"
 

@@ -20,6 +20,7 @@ class TextInserter:
         self.smart_capitalization = config.get("smart_capitalization", True)
         self.smart_spacing = config.get("smart_spacing", True)
         self.normalize_urls = config.get("normalize_urls", True)
+        self.www_mode = self._resolve_www_mode(config)
         self.add_trailing_space = config.get("add_trailing_space", False)
         self.context_max_chars = config.get("context_max_chars", 100)
         self.sentence_enders = config.get("sentence_enders", ".!?")
@@ -39,6 +40,17 @@ class TextInserter:
             r'[A-Za-z\u00C0-\u024F]{2,63}'
             r'(?:/[^\s]*)?)'
             r'(?!\w)',
+            re.IGNORECASE,
+        )
+        self._explicit_www_pattern = re.compile(
+            r'(?<!\w)'
+            r'(?:www|w[\s\-.]*w[\s\-.]*w|triple\s+w|double[\s-]?u\s+double[\s-]?u\s+double[\s-]?u)'
+            r'\s+'
+            r'(?P<domain>'
+            r'(?:[0-9A-Za-z\u00C0-\u024F-]+\.)+'
+            r'[A-Za-z\u00C0-\u024F]{2,63}'
+            r'(?:/[^\s]*)?'
+            r')',
             re.IGNORECASE,
         )
 
@@ -234,9 +246,18 @@ class TextInserter:
 
     def _normalize_urls(self, text: str) -> str:
         """Normalize URL/domain tokens to ASCII lowercase domains."""
-        return self._url_pattern.sub(lambda m: self._normalize_url_token(m.group(1)), text)
+        explicit_domains = {}
+        if self.www_mode == "explicit_only":
+            text, explicit_domains = self._extract_explicit_www_domains(text)
 
-    def _normalize_url_token(self, token: str) -> str:
+        normalized = self._url_pattern.sub(lambda m: self._normalize_url_token(m.group(1)), text)
+
+        if explicit_domains:
+            normalized = self._restore_explicit_www_domains(normalized, explicit_domains)
+
+        return normalized
+
+    def _normalize_url_token(self, token: str, keep_www: bool = False) -> str:
         """Normalize a single URL or domain token."""
         scheme = ""
         host_and_rest = token
@@ -262,5 +283,47 @@ class TextInserter:
         host_ascii = "".join(ch for ch in host_ascii if not unicodedata.combining(ch))
         host_ascii = host_ascii.lower()
         host_ascii = re.sub(r"[^a-z0-9.-]", "", host_ascii)
+        if self.www_mode == "always_strip" and host_ascii.startswith("www."):
+            host_ascii = host_ascii[4:]
+        elif self.www_mode == "explicit_only" and not keep_www and host_ascii.startswith("www."):
+            host_ascii = host_ascii[4:]
 
         return f"{scheme}{host_ascii}{rest}"
+
+    @staticmethod
+    def _resolve_www_mode(config: dict) -> str:
+        """Resolve URL www handling mode with backward-compatible fallback."""
+        mode = config.get("www_mode")
+        if isinstance(mode, str):
+            mode = mode.lower().strip()
+            if mode in {"always_strip", "never_strip", "explicit_only"}:
+                return mode
+
+        # Backward compatibility: old boolean setting.
+        strip_www_prefix = config.get("strip_www_prefix")
+        if isinstance(strip_www_prefix, bool):
+            return "always_strip" if strip_www_prefix else "never_strip"
+
+        return "explicit_only"
+
+    def _extract_explicit_www_domains(self, text: str) -> tuple[str, dict[str, str]]:
+        """Replace explicit WWW markers with placeholders for later restoration."""
+        replacements: dict[str, str] = {}
+        counter = 0
+
+        def replacer(match) -> str:
+            nonlocal counter
+            placeholder = f"__KVX_KEEP_WWW_{counter}__"
+            replacements[placeholder] = match.group("domain")
+            counter += 1
+            return placeholder
+
+        return self._explicit_www_pattern.sub(replacer, text), replacements
+
+    def _restore_explicit_www_domains(self, text: str, replacements: dict[str, str]) -> str:
+        """Restore explicit WWW placeholders to normalized www domains."""
+        result = text
+        for placeholder, domain in replacements.items():
+            forced_www = self._normalize_url_token(f"www.{domain}", keep_www=True)
+            result = result.replace(placeholder, forced_www)
+        return result

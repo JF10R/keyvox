@@ -35,6 +35,7 @@ DEFAULT_CONFIG = {
         "smart_capitalization": True,
         "smart_spacing": True,
         "normalize_urls": True,
+        "www_mode": "explicit_only",
         "add_trailing_space": False,
         "context_max_chars": 100,
         "sentence_enders": ".!?",

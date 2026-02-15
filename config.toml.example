@@ -105,6 +105,13 @@ smart_spacing = true
 # - lowercases domain names
 normalize_urls = true
 
+# WWW handling strategy for normalized domains:
+# - "explicit_only" (recommended): keep `www.` only when explicitly dictated via
+#   phrases like "triple w google.com" or "www google.com"
+# - "always_strip": always remove leading `www.`
+# - "never_strip": always keep leading `www.` when present
+www_mode = "explicit_only"
+
 # Optional trailing space after sentence-ending punctuation
 add_trailing_space = false
 
