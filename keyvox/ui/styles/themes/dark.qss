@@ -1,0 +1,47 @@
+/*
+ * KeyVox UI - Dark Theme
+ * Inspired by Linear, Raycast
+ */
+
+/* === System === */
+QSystemTrayIcon {
+    color: {{TEXT_PRIMARY}};
+}
+
+/* === Semantic Labels === */
+QLabel[class="heading"] {
+    font-size: {{SIZE_H1}};
+    font-weight: {{WEIGHT_BOLD}};
+    color: {{TEXT_PRIMARY}};
+}
+
+QLabel[class="subheading"] {
+    font-size: {{SIZE_H2}};
+    font-weight: {{WEIGHT_MEDIUM}};
+    color: {{TEXT_SECONDARY}};
+}
+
+QLabel[class="accent"] {
+    color: {{ACCENT_PRIMARY}};
+}
+
+QLabel[class="success"] {
+    color: {{SUCCESS}};
+}
+
+QLabel[class="error"] {
+    color: {{ERROR}};
+}
+
+QLabel[class="warning"] {
+    color: {{WARNING}};
+}
+
+/* === Separators === */
+QFrame[frameShape="4"] {
+    color: {{BORDER_DEFAULT}};
+}
+
+QFrame[frameShape="5"] {
+    color: {{BORDER_DEFAULT}};
+}

@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 singleton = ["pywin32>=306"]
+gui = ["PySide6>=6.6.0"]
 
 [project.scripts]
 keyvox = "keyvox.__main__:main"
