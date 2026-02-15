@@ -7,12 +7,13 @@ Hold a hotkey, speak, release — your words are transcribed and pasted into the
 ## How It Works
 
 ```
-┌─────────┐    ┌───────────────┐    ┌─────────────────┐    ┌────────────────┐    ┌────────────┐
-│ Hotkey   │───>│ Audio Capture │───>│ Speech-to-Text  │───>│ Post-process   │───>│ Paste into │
-│ Listener │    │ (Microphone)  │    │ (Whisper model) │    │ (Dictionary)   │    │ Active App │
-└─────────┘    └───────────────┘    └─────────────────┘    └────────────────┘    └────────────┘
-  Hold key       Stream audio        GPU inference          Word corrections     Clipboard +
-  to start       until release        on recorded chunk     and formatting       simulated Ctrl+V
+┌─────────┐    ┌───────────────┐    ┌─────────────────┐    ┌────────────────┐    ┌─────────────────┐    ┌────────────┐
+│ Hotkey   │───>│ Audio Capture │───>│ Speech-to-Text  │───>│ Dictionary     │───>│ Smart Text      │───>│ Paste into │
+│ Listener │    │ (Microphone)  │    │ (Whisper model) │    │ Corrections    │    │ Insertion       │    │ Active App │
+└─────────┘    └───────────────┘    └─────────────────┘    └────────────────┘    └─────────────────┘    └────────────┘
+  Hold key       Stream audio        GPU inference          Word corrections     Context-aware       Clipboard +
+  to start       until release        on recorded chunk     (GitHub, WhatsApp)   capitalization      simulated Ctrl+V
+                                                                                  and spacing
 ```
 
 **Core pipeline:**
@@ -20,8 +21,9 @@ Hold a hotkey, speak, release — your words are transcribed and pasted into the
 1. **Hotkey listener** — global push-to-talk key, captured at OS level
 2. **Audio capture** — microphone stream buffered while key is held
 3. **Speech-to-text engine** — Whisper model runs GPU-accelerated inference on the audio
-4. **Post-processing** — dictionary corrections, formatting (planned)
-5. **Output** — text copied to clipboard and pasted into the active window
+4. **Dictionary corrections** — case-insensitive word replacements (e.g., "github" → "GitHub")
+5. **Smart text insertion** — context-aware capitalization and spacing
+6. **Output** — text copied to clipboard and pasted into the active window
 
 **Future components** (see [Roadmap](#roadmap)):
 
@@ -243,6 +245,54 @@ See [BACKENDS.md](BACKENDS.md) for backend-specific configuration and switching 
 | `double_tap_to_clipboard` | `true` | Enable double-tap to paste last transcription |
 | `double_tap_timeout` | `0.5` | Max seconds between taps to trigger double-tap (0.3-1.0 recommended) |
 
+### `[dictionary]`
+
+Custom word corrections applied to transcriptions (case-insensitive matching):
+
+```toml
+[dictionary]
+github = "GitHub"
+whatsapp = "WhatsApp"
+openai = "OpenAI"
+```
+
+Words are matched with word boundaries — "github" matches but "githubbing" doesn't.
+
+### `[text_insertion]`
+
+Smart capitalization and spacing based on cursor context:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `true` | Enable smart text insertion |
+| `smart_capitalization` | `true` | Auto-capitalize after `. ! ?` and at document start |
+| `smart_spacing` | `true` | Auto-add spaces based on context (no space before punctuation) |
+| `add_trailing_space` | `false` | Add space after sentence-ending punctuation |
+| `context_max_chars` | `100` | Max characters to analyze from clipboard for context |
+| `sentence_enders` | `".!?"` | Characters that end sentences (trigger capitalization) |
+| `punctuation_starters` | `",.!?:;'\")}]"` | Don't add space before these characters |
+
+**How it works:**
+
+- **Capitalization:** Detects if cursor is at document start or after sentence-ending punctuation (`. ! ?`), then capitalizes first letter
+- **Spacing:** Adds leading space when continuing mid-word, but not before punctuation or after opening brackets
+- **Context detection:** Reads clipboard content (Windows) to determine cursor position context
+- **Dictionary integration:** Respects dictionary casing — won't capitalize "github" at sentence start if dictionary has "GitHub"
+
+**Example:**
+
+```
+Notepad content: "Hello world."
+You say: "how are you"
+Result: "Hello world. How are you"  (space + capitalize)
+
+Notepad content: "Hello"
+You say: "comma world"
+Result: "Hello, world"  (no space before comma)
+```
+
+**Opt-out:** Set `enabled = false` to disable. Feature works on Windows; gracefully degrades on Linux/macOS (no context detection yet).
+
 ## Autostart (Windows)
 
 ```powershell
@@ -264,6 +314,7 @@ schtasks /delete /tn "KeyVox" /f
   - [x] **Clipboard-restore mode (paste then restore previous clipboard)**
 - [x] **Double-tap to paste (tap hotkey twice to instantly paste last transcription)** ✅ Tested
 - [x] **Dictionary corrections (case-insensitive word replacements)** ✅ Tested
+- [x] **Smart text insertion (context-aware capitalization and spacing)** ✅ Tested
 - [ ] Visual recording/processing indicator
   - [ ] Show feedback in active input when holding hotkey
   - [ ] Show "processing..." indicator after release, before text appears

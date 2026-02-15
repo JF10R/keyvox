@@ -3,12 +3,13 @@ from pynput import keyboard
 from pynput.keyboard import Key, Controller
 import pyperclip
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .recorder import AudioRecorder
     from .backends import TranscriberBackend
     from .dictionary import DictionaryManager
+    from .text_insertion import TextInserter
 
 
 # Mapping of string hotkey names to pynput Key objects
@@ -37,7 +38,8 @@ class HotkeyManager:
         auto_paste: bool = True,
         paste_method: str = "type",
         double_tap_to_clipboard: bool = True,
-        double_tap_timeout: float = 0.5
+        double_tap_timeout: float = 0.5,
+        text_inserter: Optional["TextInserter"] = None
     ):
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
@@ -45,6 +47,7 @@ class HotkeyManager:
         self.dictionary = dictionary
         self.auto_paste = auto_paste
         self.paste_method = paste_method
+        self.text_inserter = text_inserter
         self.kb = Controller()
 
         # Double-tap tracking
@@ -117,7 +120,11 @@ class HotkeyManager:
             if text:
                 text = self.dictionary.apply(text)
 
-            # Update last transcription
+                # Apply smart text insertion
+                if self.text_inserter:
+                    text = self.text_inserter.process(text)
+
+            # Update last transcription (after all processing)
             if text:
                 if self.double_tap_enabled:
                     self.last_transcription = text

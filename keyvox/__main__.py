@@ -11,6 +11,7 @@ from .recorder import AudioRecorder
 from .backends import create_transcriber
 from .hotkey import HotkeyManager
 from .dictionary import DictionaryManager
+from .text_insertion import TextInserter
 from .setup_wizard import run_wizard
 
 
@@ -75,6 +76,13 @@ def main() -> None:
         # Initialize dictionary
         dictionary = DictionaryManager.load_from_config(config)
 
+        # Initialize text inserter
+        text_inserter_config = config.get("text_insertion", {})
+        text_inserter = TextInserter(
+            config=text_inserter_config,
+            dictionary_corrections=dictionary.corrections
+        )
+
         # Initialize hotkey manager
         hotkey_manager = HotkeyManager(
             hotkey_name=config["hotkey"]["push_to_talk"],
@@ -84,7 +92,8 @@ def main() -> None:
             auto_paste=config["output"]["auto_paste"],
             paste_method=config["output"]["paste_method"],
             double_tap_to_clipboard=config["output"]["double_tap_to_clipboard"],
-            double_tap_timeout=config["output"]["double_tap_timeout"]
+            double_tap_timeout=config["output"]["double_tap_timeout"],
+            text_inserter=text_inserter
         )
 
         # Start listening

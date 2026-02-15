@@ -30,6 +30,15 @@ DEFAULT_CONFIG = {
         "double_tap_timeout": 0.5,
     },
     "dictionary": {},
+    "text_insertion": {
+        "enabled": True,
+        "smart_capitalization": True,
+        "smart_spacing": True,
+        "add_trailing_space": False,
+        "context_max_chars": 100,
+        "sentence_enders": ".!?",
+        "punctuation_starters": ",.!?:;'\")}]",
+    },
 }
 
 
