@@ -1,0 +1,28 @@
+# KeyVox Configuration
+# Copy to config.toml and customize, or run: keyvox --setup
+
+[model]
+# Whisper model: tiny, base, small, medium, large-v3, large-v3-turbo
+name = "large-v3-turbo"
+# Device: cuda or cpu
+device = "cuda"
+# Compute type: float16 (GPU), int8 (CPU), float32
+compute_type = "float16"
+
+[audio]
+# Microphone: "default" or device index (run keyvox --setup to list)
+input_device = "default"
+# Sample rate in Hz
+sample_rate = 16000
+
+[hotkey]
+# Push-to-talk key: ctrl_r, ctrl_l, alt_r, alt_l, shift_r, etc.
+push_to_talk = "ctrl_r"
+
+[paths]
+# Model cache directory (empty = default HuggingFace cache)
+model_cache = ""
+
+[output]
+# Auto-paste transcription into active window via Ctrl+V
+auto_paste = true
