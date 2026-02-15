@@ -26,6 +26,8 @@ DEFAULT_CONFIG = {
     "output": {
         "auto_paste": True,
         "paste_method": "type",
+        "double_tap_to_clipboard": True,
+        "double_tap_timeout": 0.5,
     },
 }
 

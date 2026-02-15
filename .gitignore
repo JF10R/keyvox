@@ -24,3 +24,4 @@ keyvox.bat
 # OS
 .DS_Store
 Thumbs.db
+.design/

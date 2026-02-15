@@ -77,7 +77,9 @@ def main() -> None:
             recorder=recorder,
             transcriber=transcriber,
             auto_paste=config["output"]["auto_paste"],
-            paste_method=config["output"]["paste_method"]
+            paste_method=config["output"]["paste_method"],
+            double_tap_to_clipboard=config["output"]["double_tap_to_clipboard"],
+            double_tap_timeout=config["output"]["double_tap_timeout"]
         )
 
         # Start listening

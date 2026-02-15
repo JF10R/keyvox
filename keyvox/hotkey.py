@@ -2,6 +2,7 @@
 from pynput import keyboard
 from pynput.keyboard import Key, Controller
 import pyperclip
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,7 +33,9 @@ class HotkeyManager:
         recorder: "AudioRecorder",
         transcriber: "TranscriberBackend",
         auto_paste: bool = True,
-        paste_method: str = "type"
+        paste_method: str = "type",
+        double_tap_to_clipboard: bool = True,
+        double_tap_timeout: float = 0.5
     ):
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
@@ -40,6 +43,12 @@ class HotkeyManager:
         self.auto_paste = auto_paste
         self.paste_method = paste_method
         self.kb = Controller()
+
+        # Double-tap tracking
+        self.double_tap_enabled = double_tap_to_clipboard and paste_method == "type"
+        self.double_tap_timeout = double_tap_timeout
+        self.last_release_time = 0.0
+        self.last_transcription = ""
 
     def _on_press(self, key):
         """Handle key press events."""
@@ -49,14 +58,40 @@ class HotkeyManager:
     def _on_release(self, key):
         """Handle key release events."""
         if key == self.hotkey:
+            current_time = time.time()
+
             # Stop recording and get audio
             audio = self.recorder.stop()
 
-            # Transcribe
+            # Check for double-tap (only if enabled)
+            if self.double_tap_enabled:
+                time_since_last_release = current_time - self.last_release_time
+
+                # Double-tap detected: quick tap with minimal/no audio
+                if 0 < time_since_last_release < self.double_tap_timeout:
+                    if self.last_transcription:
+                        pyperclip.copy(self.last_transcription)
+                        print("[OK] Double-tap detected - Last transcription copied to clipboard")
+                        self.last_release_time = 0.0  # Reset to prevent triple-tap
+                        return
+                    else:
+                        print("[INFO] Double-tap detected but no previous transcription available")
+                        self.last_release_time = 0.0
+                        return
+
+            # Transcribe (skip if no audio captured)
+            if audio is None:
+                return
+
             text = self.transcriber.transcribe(audio)
 
-            # Paste or copy transcription
+            # Update last transcription and release time
             if text:
+                if self.double_tap_enabled:
+                    self.last_transcription = text
+                    self.last_release_time = current_time
+
+                # Paste or copy transcription
                 if self.auto_paste:
                     self._paste_text(text)
                 else:
@@ -70,6 +105,8 @@ class HotkeyManager:
     def run(self) -> None:
         """Start the hotkey listener (blocking)."""
         print(f"[OK] Push-to-Talk enabled - Hold {self._hotkey_display_name()} to speak")
+        if self.double_tap_enabled:
+            print(f"[INFO] Double-tap {self._hotkey_display_name()} to copy last transcription to clipboard")
         print("[INFO] Press ESC to quit\n")
 
         with keyboard.Listener(

@@ -49,3 +49,15 @@ auto_paste = true
 #   → Clipboard managers will log both the transcription AND restored value (creates duplicates)
 #   → Use if "type" doesn't work in specific apps
 paste_method = "type"
+
+# Double-tap to clipboard: tap hotkey twice quickly to copy last transcription
+# - Only works when paste_method = "type" (other methods already use clipboard)
+# - Useful when you want to paste the same transcription multiple times
+# - Or when you need to copy it somewhere else manually
+double_tap_to_clipboard = true
+
+# Double-tap timeout: maximum time between taps (in seconds)
+# - 0.5s = comfortable for most users
+# - Decrease for faster double-tap detection (e.g., 0.3)
+# - Increase if you accidentally trigger double-taps (e.g., 0.7)
+double_tap_timeout = 0.5
