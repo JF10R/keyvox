@@ -374,8 +374,8 @@ schtasks /delete /tn "Keyvox" /f
 ### Current Top Priority
 - [ ] Evaluate frontend decoupling with backend engine wrapper (API/WebSocket) to support Tauri or similar cross-platform UI
 - [ ] Evaluate Tauri migration feasibility for professional cross-platform desktop UX
-- [ ] Text insertion guardrails: do not add a space when cursor is already after a space
-- [ ] Text insertion guardrails: do not add a period when cursor is immediately before an existing period
+- [x] Text insertion guardrails: do not add a space when cursor is already after a space
+- [x] Text insertion guardrails: do not add a period when cursor is immediately before an existing period
 
 ### v0.2 — Desktop UI & UX Improvements
 - [x] **Clipboard management modes:**

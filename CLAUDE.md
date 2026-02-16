@@ -79,7 +79,7 @@ pytest --cov=keyvox --cov-report=html --cov-report=term
 # .coverage, coverage.xml, htmlcov/, .tracecov/
 ```
 
-- 103 tests, 100% coverage (as of c76be02)
+- 184 tests, 100% coverage
 - Test files: `tests/test_*.py` pattern
 - No pytest.ini — uses pytest defaults
 

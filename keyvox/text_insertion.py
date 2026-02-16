@@ -194,6 +194,18 @@ class TextInserter:
         if not text:
             return text
 
+        # Guardrail: strip leading whitespace when context already ends with space
+        if context and context[-1].isspace():
+            text = text.lstrip()
+            if not text:
+                return text
+
+        # Guardrail: strip leading period when context already ends with period
+        if context and context[-1] == '.' and text.startswith('.'):
+            text = text.lstrip('.').lstrip()
+            if not text:
+                return text
+
         leading_space, trailing_space = self._calculate_spacing(text, context)
 
         result = text

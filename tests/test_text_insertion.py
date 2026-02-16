@@ -237,6 +237,50 @@ class TestUrlNormalization:
         assert result == "www.google.com"
 
 
+class TestGuardrails:
+    """Test text insertion guardrails (no double space, no double period)."""
+
+    def test_no_double_space_whisper_leading_space(self, text_inserter):
+        """Strip leading space from Whisper output when context ends with space."""
+        result = text_inserter.process(" hello", preceding_context="world ")
+        assert result == "hello"
+
+    def test_no_double_space_multiple_leading_spaces(self, text_inserter):
+        """Strip multiple leading spaces."""
+        result = text_inserter.process("   hello", preceding_context="world ")
+        assert result == "hello"
+
+    def test_no_double_space_tab_context(self, text_inserter):
+        """Tab counts as whitespace — strip leading space."""
+        result = text_inserter.process(" hello", preceding_context="world\t")
+        assert result == "hello"
+
+    def test_no_double_space_all_whitespace_text(self, text_inserter):
+        """All-whitespace text returns empty after strip."""
+        result = text_inserter.process("   ", preceding_context="world ")
+        assert result == ""
+
+    def test_no_double_period(self, text_inserter):
+        """Don't insert period when cursor is right after a period."""
+        result = text_inserter.process(".", preceding_context="Hello.")
+        assert result == ""
+
+    def test_no_double_period_with_trailing_text(self, text_inserter):
+        """Strip leading period but keep remaining text."""
+        result = text_inserter.process(". And more", preceding_context="Hello.")
+        assert result == " And more"
+
+    def test_no_double_period_multiple_periods(self, text_inserter):
+        """Strip all leading periods when context ends with period."""
+        result = text_inserter.process(".. okay", preceding_context="Hello.")
+        assert result == " okay"
+
+    def test_period_allowed_when_no_context_period(self, text_inserter):
+        """Normal period insertion still works without context period."""
+        result = text_inserter.process(".", preceding_context="Hello")
+        assert result == "."
+
+
 class TestEdgeCases:
     """Test edge cases and graceful degradation."""
 
