@@ -43,6 +43,21 @@ export interface StorageStatus {
   effective_paths: Record<string, string>;
 }
 
+export interface HardwareInfo {
+  gpu_available: boolean;
+  gpu_vendor: "nvidia" | "amd" | "intel" | "none";
+  gpu_name: string;
+  gpu_vram_gb: number;
+}
+
+export interface ModelRecommendation {
+  backend: string;
+  name: string;
+  device: string;
+  compute_type: string;
+  reason: string;
+}
+
 export interface CapabilitiesResult {
   backends: BackendCapability[];
   model_presets: Record<string, string[]>;
@@ -59,6 +74,8 @@ export interface CapabilitiesResult {
     dictionary: boolean;
     text_insertion: boolean;
   };
+  hardware: HardwareInfo;
+  recommendation: ModelRecommendation | null;
 }
 
 export interface AudioDeviceInfo {

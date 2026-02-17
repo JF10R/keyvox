@@ -32,6 +32,7 @@ This app is a production-oriented desktop interface for Keyvox, backed by `keyvo
 - Model readiness indicators, required/free space hints, and download progress bars
 - Tray tooltip status updates (ready/loading) and native storage folder picker
 - SQLite-backed history browsing, search, delete, clear, and export
+- Hardware detection display (GPU name + VRAM) and VRAM-based model recommendation badges on selectors
 
 ## Dev setup
 

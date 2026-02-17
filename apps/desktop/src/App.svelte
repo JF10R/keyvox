@@ -943,13 +943,24 @@
 
         <div class="field-group">
           <h3>Model</h3>
+          {#if capabilities?.hardware}
+            <p class="muted">
+              {#if capabilities.hardware.gpu_available}
+                {capabilities.hardware.gpu_name} ({capabilities.hardware.gpu_vram_gb.toFixed(1)}GB)
+              {:else}
+                {capabilities.hardware.gpu_name}
+              {/if}
+            </p>
+          {/if}
           {#if modelDownloadState === "loading"}
             <p class="muted">Configuration locked during download</p>
           {/if}
           <select bind:value={modelBackend} disabled={modelDownloadState === "loading"}>
             {#if capabilities}
               {#each capabilities.backends as backend}
-                <option value={backend.id} disabled={!backend.available}>{backend.label}</option>
+                <option value={backend.id} disabled={!backend.available}>
+                  {backend.label}{capabilities.recommendation?.backend === backend.id ? " (Recommended)" : ""}
+                </option>
               {/each}
             {:else}
               <option value={modelBackend}>{modelBackend}</option>
@@ -972,13 +983,18 @@
               {/each}
             {/if}
           </datalist>
+          {#if capabilities?.recommendation && capabilities.recommendation.backend === modelBackend}
+            <p class="muted">Recommended: {capabilities.recommendation.name}</p>
+          {/if}
           {#if validationErrors["name"]}
             <p class="error-inline">{validationErrors["name"]}</p>
           {/if}
           <select bind:value={modelDevice} disabled={modelDownloadState === "loading"}>
             {#if capabilities?.model_devices}
               {#each capabilities.model_devices as device}
-                <option value={device}>{device}</option>
+                <option value={device}>
+                  {device}{capabilities.recommendation?.device === device && capabilities.recommendation.backend === modelBackend ? " (Recommended)" : ""}
+                </option>
               {/each}
             {:else}
               <option value={modelDevice}>{modelDevice}</option>
@@ -990,16 +1006,23 @@
           <select bind:value={modelComputeType} disabled={modelDownloadState === "loading"}>
             {#if capabilities?.compute_types?.[modelBackend]}
               {#each capabilities.compute_types[modelBackend] as computeType}
-                <option value={computeType}>{computeType}</option>
+                <option value={computeType}>
+                  {computeType}{capabilities.recommendation?.compute_type === computeType && capabilities.recommendation.backend === modelBackend ? " (Recommended)" : ""}
+                </option>
               {/each}
             {:else if capabilities?.compute_types?.["auto"]}
               {#each capabilities.compute_types["auto"] as computeType}
-                <option value={computeType}>{computeType}</option>
+                <option value={computeType}>
+                  {computeType}{capabilities.recommendation?.compute_type === computeType && capabilities.recommendation.backend === modelBackend ? " (Recommended)" : ""}
+                </option>
               {/each}
             {:else}
               <option value={modelComputeType}>{modelComputeType}</option>
             {/if}
           </select>
+          {#if capabilities?.recommendation && capabilities.recommendation.backend === modelBackend}
+            <p class="muted">{capabilities.recommendation.reason}</p>
+          {/if}
           {#if validationErrors["compute_type"]}
             <p class="error-inline">{validationErrors["compute_type"]}</p>
           {/if}

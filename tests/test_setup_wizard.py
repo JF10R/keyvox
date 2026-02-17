@@ -5,50 +5,7 @@ import types
 from pathlib import Path
 
 from keyvox import setup_wizard as wizard
-
-
-def test_recommend_model_thresholds():
-    assert wizard._recommend_model(7.0) == "large-v3-turbo"
-    assert wizard._recommend_model(4.5) == "medium"
-    assert wizard._recommend_model(2.1) == "small"
-    assert wizard._recommend_model(1.5) == "tiny"
-
-
-def test_detect_gpu_import_error(monkeypatch):
-    orig_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        if name == "torch":
-            raise ImportError("missing")
-        return orig_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    result = wizard._detect_gpu()
-    assert result == {"available": False, "vram_gb": 0}
-
-
-def test_detect_gpu_without_cuda(monkeypatch):
-    fake_torch = types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False))
-    monkeypatch.setitem(__import__("sys").modules, "torch", fake_torch)
-    result = wizard._detect_gpu()
-    assert result == {"available": False, "vram_gb": 0}
-
-
-def test_detect_gpu_with_cuda(monkeypatch):
-    class Props:
-        total_memory = 8 * 1024 ** 3
-
-    fake_cuda = types.SimpleNamespace(
-        is_available=lambda: True,
-        get_device_name=lambda idx: "GPU-X",
-        get_device_properties=lambda idx: Props(),
-    )
-    fake_torch = types.SimpleNamespace(cuda=fake_cuda)
-    monkeypatch.setitem(__import__("sys").modules, "torch", fake_torch)
-    result = wizard._detect_gpu()
-    assert result["available"] is True
-    assert result["name"] == "GPU-X"
-    assert result["vram_gb"] >= 7.9
+from keyvox import hardware
 
 
 def test_list_microphones_prints_input_devices(monkeypatch, capsys):
@@ -66,7 +23,21 @@ def test_list_microphones_prints_input_devices(monkeypatch, capsys):
 
 
 def test_run_wizard_cpu_path_and_download_failure(monkeypatch, tmp_path):
-    monkeypatch.setattr(wizard, "_detect_gpu", lambda: {"available": False, "vram_gb": 0})
+    def fake_detect():
+        return {"gpu_available": False, "gpu_vendor": "none", "gpu_name": "No GPU", "gpu_vram_gb": 0}
+
+    def fake_recommend(hw):
+        return {
+            "backend": "faster-whisper",
+            "name": "tiny",
+            "device": "cpu",
+            "compute_type": "int8",
+            "reason": "CPU",
+        }
+
+    import keyvox.setup_wizard
+    monkeypatch.setattr(keyvox.setup_wizard, "detect_hardware", fake_detect)
+    monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
     monkeypatch.setattr(wizard.Path, "cwd", lambda: tmp_path)
 
@@ -92,13 +63,28 @@ def test_run_wizard_cpu_path_and_download_failure(monkeypatch, tmp_path):
     wizard.run_wizard()
 
     assert saved["path"] == tmp_path / "config.toml"
+    assert saved["config"]["model"]["backend"] == "faster-whisper"
     assert saved["config"]["model"]["device"] == "cpu"
     assert saved["config"]["model"]["compute_type"] == "int8"
     assert saved["config"]["output"]["auto_paste"] is True
 
 
 def test_run_wizard_gpu_path_and_download_success(monkeypatch, tmp_path):
-    monkeypatch.setattr(wizard, "_detect_gpu", lambda: {"available": True, "vram_gb": 8.0})
+    def fake_detect():
+        return {"gpu_available": True, "gpu_vendor": "nvidia", "gpu_name": "RTX 4090", "gpu_vram_gb": 8.0}
+
+    def fake_recommend(hw):
+        return {
+            "backend": "faster-whisper",
+            "name": "large-v3-turbo",
+            "device": "cuda",
+            "compute_type": "float16",
+            "reason": "GPU",
+        }
+
+    import keyvox.setup_wizard
+    monkeypatch.setattr(keyvox.setup_wizard, "detect_hardware", fake_detect)
+    monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
     monkeypatch.setattr(wizard.Path, "cwd", lambda: tmp_path)
 
@@ -124,6 +110,7 @@ def test_run_wizard_gpu_path_and_download_success(monkeypatch, tmp_path):
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     wizard.run_wizard()
 
+    assert saved["config"]["model"]["backend"] == "faster-whisper"
     assert saved["config"]["model"]["name"] == "large-v3-turbo"
     assert saved["config"]["model"]["device"] == "cuda"
     assert whisper_calls["args"] == ("large-v3-turbo", "cuda", "float16")
@@ -131,7 +118,21 @@ def test_run_wizard_gpu_path_and_download_success(monkeypatch, tmp_path):
 
 
 def test_run_wizard_sets_hf_cache_env_when_model_cache_provided(monkeypatch, tmp_path):
-    monkeypatch.setattr(wizard, "_detect_gpu", lambda: {"available": True, "vram_gb": 8.0})
+    def fake_detect():
+        return {"gpu_available": True, "gpu_vendor": "nvidia", "gpu_name": "RTX 4090", "gpu_vram_gb": 8.0}
+
+    def fake_recommend(hw):
+        return {
+            "backend": "faster-whisper",
+            "name": "large-v3-turbo",
+            "device": "cuda",
+            "compute_type": "float16",
+            "reason": "GPU",
+        }
+
+    import keyvox.setup_wizard
+    monkeypatch.setattr(keyvox.setup_wizard, "detect_hardware", fake_detect)
+    monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
     monkeypatch.setattr(wizard.Path, "cwd", lambda: tmp_path)
 

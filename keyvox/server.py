@@ -108,6 +108,15 @@ class KeyvoxServer:
         self._active_storage_target: Optional[str] = None
         self._model_size_cache: Dict[str, list[tuple[str, int]]] = {}
 
+        from .hardware import detect_hardware, recommend_model_config
+
+        self._hw_info = detect_hardware()
+        self._recommendation = recommend_model_config(self._hw_info)
+        if self._hw_info["gpu_available"]:
+            print(f"[OK] GPU detected: {self._hw_info['gpu_name']} ({self._hw_info['gpu_vram_gb']:.1f} GB)")
+        else:
+            print(f"[INFO] {self._hw_info['gpu_name']}")
+
         # Initialize engine components.
         self._transcriber = create_transcriber(config)
         self._recorder = AudioRecorder(
@@ -276,15 +285,6 @@ class KeyvoxServer:
             self._loop.call_soon_threadsafe(self._loop.stop)
 
     @staticmethod
-    def _is_cuda_available() -> bool:
-        try:
-            import torch
-
-            return bool(torch.cuda.is_available())
-        except Exception:
-            return False
-
-    @staticmethod
     def _module_available(module_name: str) -> bool:
         try:
             __import__(module_name)
@@ -359,6 +359,8 @@ class KeyvoxServer:
                 "dictionary": False,
                 "text_insertion": False,
             },
+            "hardware": self._hw_info,
+            "recommendation": self._recommendation,
         }
 
     def _model_cache_dir(self) -> str:
@@ -840,7 +842,7 @@ class KeyvoxServer:
                 }
             )
 
-        if device == "cuda" and not self._is_cuda_available():
+        if device == "cuda" and not self._hw_info["gpu_available"]:
             warnings.append(
                 {
                     "code": "cuda_unavailable",

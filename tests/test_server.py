@@ -190,6 +190,20 @@ def test_get_capabilities_response(monkeypatch):
     assert restart_policy["dictionary"] is False
     assert len(payload["result"]["model_download_status"]) > 0
     assert payload["result"]["active_model_download"] is None
+    assert "hardware" in payload["result"]
+    assert "recommendation" in payload["result"]
+    hw = payload["result"]["hardware"]
+    assert isinstance(hw["gpu_available"], bool)
+    assert hw["gpu_vendor"] in {"nvidia", "amd", "intel", "none"}
+    assert isinstance(hw["gpu_name"], str)
+    assert isinstance(hw["gpu_vram_gb"], (int, float))
+    if payload["result"]["recommendation"] is not None:
+        rec = payload["result"]["recommendation"]
+        assert isinstance(rec["backend"], str)
+        assert isinstance(rec["name"], str)
+        assert isinstance(rec["device"], str)
+        assert isinstance(rec["compute_type"], str)
+        assert isinstance(rec["reason"], str)
 
 
 def test_get_storage_status_uses_effective_model_cache_when_storage_root_empty(monkeypatch):
@@ -286,7 +300,7 @@ def test_list_audio_devices_internal_error(monkeypatch):
 def test_validate_model_config_valid_and_invalid(monkeypatch):
     server, _, _ = _make_server(monkeypatch)
     ws = _FakeWebSocket()
-    monkeypatch.setattr(server, "_is_cuda_available", lambda: True)
+    server._hw_info["gpu_available"] = True
 
     asyncio.run(
         server._handle_command(
@@ -330,7 +344,7 @@ def test_validate_model_config_missing_fields_and_platform(monkeypatch):
     server, _, _ = _make_server(monkeypatch)
     ws = _FakeWebSocket()
     monkeypatch.setattr(server_mod.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(server, "_is_cuda_available", lambda: False)
+    server._hw_info["gpu_available"] = False
 
     asyncio.run(
         server._handle_command(

@@ -23,6 +23,7 @@ keyvox/
   dictionary.py       # Dictionary corrections
   history.py          # SQLite transcription persistence
   storage.py          # Unified storage root management + migration
+  hardware.py         # GPU detection + VRAM-based model recommendation
   server.py           # WebSocket protocol server over localhost
   backends/           # Transcriber backend factory + implementations
 apps/desktop/
@@ -49,6 +50,8 @@ apps/desktop/
 - Desktop model selectors are constrained `<select>` dropdowns (not free-text), reactively filtered by capabilities.
 - Dictionary CRUD is managed via desktop UI (table with inline edit) backed by server commands.
 - Background job guards disable config inputs during model download or storage migration.
+- `hardware.py` detects GPU at server startup; `get_capabilities` exposes hardware info and VRAM-based model recommendation.
+- Desktop UI shows GPU info and recommendation badges on model selectors.
 
 ## Dependency Notes
 

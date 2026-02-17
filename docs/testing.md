@@ -21,6 +21,7 @@ python -m pytest --cov=keyvox --cov-report=term-missing -q
 - `tests/test_backends_*.py`: backend factory and backend adapter contracts
 - `tests/test_config_*.py`: config defaults, loading, merging, and hot-reload wiring
 - `tests/test_text_insertion.py`: capitalization/spacing/URL normalization rules
+- `tests/test_hardware.py`: GPU detection fallbacks and VRAM-based model recommendation tiers
 
 ## Policy
 

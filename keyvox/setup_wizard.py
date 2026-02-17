@@ -1,47 +1,8 @@
 """Setup wizard for initial configuration."""
 import sounddevice as sd
 from pathlib import Path
-from typing import Dict, Any
 from .config import save_config
-
-
-def _detect_gpu() -> Dict[str, Any]:
-    """Detect GPU capabilities."""
-    try:
-        import torch
-
-        if not torch.cuda.is_available():
-            print("[INFO] No CUDA GPU detected")
-            return {"available": False, "vram_gb": 0}
-
-        device_name = torch.cuda.get_device_name(0)
-        device_props = torch.cuda.get_device_properties(0)
-        vram_bytes = device_props.total_memory
-        vram_gb = vram_bytes / (1024 ** 3)
-
-        print(f"[OK] GPU detected: {device_name}")
-        print(f"[INFO] VRAM: {vram_gb:.1f} GB")
-
-        return {
-            "available": True,
-            "name": device_name,
-            "vram_gb": vram_gb
-        }
-    except ImportError:
-        print("[WARN] PyTorch not installed, cannot detect GPU")
-        return {"available": False, "vram_gb": 0}
-
-
-def _recommend_model(vram_gb: float) -> str:
-    """Recommend model based on VRAM."""
-    if vram_gb >= 6:
-        return "large-v3-turbo"
-    elif vram_gb >= 4:
-        return "medium"
-    elif vram_gb >= 2:
-        return "small"
-    else:
-        return "tiny"
+from .hardware import detect_hardware, recommend_model_config
 
 
 def _list_microphones() -> None:
@@ -63,22 +24,21 @@ def run_wizard() -> None:
     print("Keyvox Setup Wizard")
     print("=" * 60)
 
-    # Detect GPU
-    gpu_info = _detect_gpu()
+    hw_info = detect_hardware()
+    recommendation = recommend_model_config(hw_info)
 
-    # Model selection
-    if gpu_info["available"]:
-        recommended_model = _recommend_model(gpu_info["vram_gb"])
-        print(f"\n[INFO] Recommended model for your GPU: {recommended_model}")
-        model_input = input(f"Model name [default: {recommended_model}]: ").strip()
-        model_name = model_input if model_input else recommended_model
-        device = "cuda"
-        compute_type = "float16"
+    if hw_info["gpu_available"]:
+        print(f"[OK] GPU detected: {hw_info['gpu_name']}")
+        print(f"[INFO] VRAM: {hw_info['gpu_vram_gb']:.1f} GB")
     else:
-        print("\n[WARN] No GPU detected, will use CPU (slower)")
-        model_name = input("Model name [default: tiny]: ").strip() or "tiny"
-        device = "cpu"
-        compute_type = "int8"
+        print(f"[INFO] {hw_info['gpu_name']}")
+
+    print(f"\n[INFO] Recommended: {recommendation['reason']}")
+    model_input = input(f"Model name [default: {recommendation['name']}]: ").strip()
+    model_name = model_input if model_input else recommendation["name"]
+    backend = recommendation["backend"]
+    device = recommendation["device"]
+    compute_type = recommendation["compute_type"]
 
     # Microphone selection
     _list_microphones()
@@ -103,6 +63,7 @@ def run_wizard() -> None:
     # Build config
     config = {
         "model": {
+            "backend": backend,
             "name": model_name,
             "device": device,
             "compute_type": compute_type,
