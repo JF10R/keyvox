@@ -255,6 +255,9 @@ Error responses keep the same envelope with `ok: false` and an `error` object:
 | Type | Purpose |
 |------|---------|
 | `ping`, `server_info`, `get_config`, `get_full_config` | Health and configuration reads |
+| `get_capabilities`, `list_audio_devices`, `validate_model_config` | Capability discovery and pre-save validation |
+| `download_model` | Background model download queueing and progress events |
+| `get_storage_status`, `set_storage_root` | Storage root status, migration, and free-space guarded relocation |
 | `set_config_section`, `set_hotkey`, `set_model`, `set_audio_device` | Configuration writes |
 | `get_dictionary`, `set_dictionary`, `delete_dictionary` | Dictionary management |
 | `get_history`, `delete_history_item`, `clear_history`, `export_history` | History operations |
@@ -267,6 +270,10 @@ Error responses keep the same envelope with `ok: false` and an `error` object:
 | `state` | `state: idle|recording|processing` |
 | `transcription` | `text`, `duration_ms`, `entry` |
 | `history_appended` | `entry` |
+| `model_download` | `status`, `backend`, `name`, `message` |
+| `model_download_progress` | `download_id`, `status`, `progress_pct`, `bytes_total`, `bytes_completed`, `bytes_remaining` |
+| `storage_migration` | `status`, `target_root`, `progress_pct`, `message`, optional byte counters |
+| `storage_updated` | `storage_root`, `persisted` |
 | `error` | `message` |
 | `dictionary_updated` | `key`, `value` |
 | `dictionary_deleted` | `key` |
@@ -329,7 +336,7 @@ See `config.toml.example` for all options. Key sections:
 
 See [BACKENDS.md](BACKENDS.md) for backend-specific configuration and switching instructions.
 
-> **Note:** Backend and model selection currently requires manual config editing. A future UI update (v0.3) will add a dropdown selector in the settings panel for easy switching.
+> **Desktop UI:** Backend/model selection and background model download are available in `apps/desktop/`.
 
 ### `[audio]`
 
@@ -348,6 +355,7 @@ See [BACKENDS.md](BACKENDS.md) for backend-specific configuration and switching 
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `storage_root` | `""` | Unified root for app-managed heavy data (`models`, `history`, `exports`, `runtime`) |
 | `model_cache` | `""` | Model download directory (empty = HuggingFace default `~/.cache/huggingface`) |
 | `history_db` | `""` | SQLite history DB path (empty = auto path next to `config.toml`) |
 
@@ -415,7 +423,7 @@ Result: "Hello, world"  (no space before comma)
 ## Testing
 
 - Full testing guide: [`docs/testing.md`](docs/testing.md)
-- Current suite: **177 tests**
+- Current suite: **187 tests**
 - Coverage command included below for local validation.
 
 Run locally:

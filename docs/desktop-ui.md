@@ -15,9 +15,22 @@ This app is a production-oriented desktop interface for Keyvox, backed by `keyvo
 - Connect-first startup strategy: attach to existing backend before spawning one
 - Managed backend ownership: app only auto-stops backends it launched
 - Bounded reconnect with backoff and manual override when retries are exhausted
+- Backend capability and validation endpoints for guided settings UIs:
+  - `get_capabilities`
+  - `list_audio_devices`
+  - `validate_model_config`
+- Background model download endpoint + events:
+  - `download_model`
+  - `model_download` + `model_download_progress` (status + progress + byte counters)
+- Storage management:
+  - `get_storage_status`
+  - `set_storage_root` with destination free-space precheck
+  - background `storage_migration` + `storage_updated` events
 - Live state panel (`idle`, `recording`, `processing`)
 - Latest transcription panel
-- Settings controls for hotkey, model, audio, and text insertion toggles
+- Settings controls for hotkey, model, audio, text insertion, and storage root
+- Model readiness indicators, required/free space hints, and download progress bars
+- Tray tooltip status updates (ready/loading) and native storage folder picker
 - SQLite-backed history browsing, search, delete, clear, and export
 
 ## Dev setup
