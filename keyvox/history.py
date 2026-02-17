@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from .config import get_config_path
+from .storage import resolve_history_db_path as resolve_history_db_path_from_storage
 
 DEFAULT_DB_FILENAME = "history.sqlite3"
 MAX_HISTORY_LIMIT = 1000
@@ -15,14 +16,8 @@ MAX_HISTORY_LIMIT = 1000
 
 def resolve_history_db_path(config: Dict[str, Any]) -> Path:
     """Resolve history DB path from config or platform defaults."""
-    configured = config.get("paths", {}).get("history_db", "")
-    if isinstance(configured, str) and configured.strip():
-        return Path(configured).expanduser()
-
     config_path = get_config_path()
-    if config_path is not None:
-        return config_path.parent / DEFAULT_DB_FILENAME
-    return Path.cwd() / DEFAULT_DB_FILENAME
+    return resolve_history_db_path_from_storage(config, config_path=config_path)
 
 
 class HistoryStore:

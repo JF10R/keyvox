@@ -26,6 +26,9 @@ sample_rate = 16000
 push_to_talk = "ctrl_r"
 
 [paths]
+# Storage root for app-managed heavy data (models/history/exports/runtime)
+# Changing this in Desktop UI migrates existing data automatically.
+storage_root = ""
 # Model cache directory (empty = default HuggingFace cache)
 model_cache = ""
 # History database path (empty = auto, next to config.toml)

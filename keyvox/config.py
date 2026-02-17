@@ -21,6 +21,7 @@ DEFAULT_CONFIG = {
         "push_to_talk": "ctrl_r",
     },
     "paths": {
+        "storage_root": "",
         "model_cache": "",
         "history_db": "",
     },

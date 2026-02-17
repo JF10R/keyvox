@@ -1,6 +1,7 @@
 """Backend factory for model-agnostic transcription."""
 from typing import Dict, Any
 from .base import TranscriberBackend
+from ..storage import resolve_model_cache_root
 
 
 def _detect_best_backend() -> str:
@@ -41,7 +42,7 @@ def create_transcriber(config: Dict[str, Any]) -> TranscriberBackend:
     model_name = config["model"]["name"]
     device = config["model"]["device"]
     compute_type = config["model"]["compute_type"]
-    model_cache = config["paths"]["model_cache"]
+    model_cache = str(resolve_model_cache_root(config))
 
     # Create backend instance
     if backend == "faster-whisper":
