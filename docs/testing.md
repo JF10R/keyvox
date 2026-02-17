@@ -1,59 +1,29 @@
 # Testing and Coverage
 
-This repository follows a test-driven workflow and keeps full module-level visibility on behavior and regressions.
+Keyvox uses pytest as the validation gate for CLI runtime, backend protocol/server behavior, and history/config flows.
 
-## Current Status
-
-- Total tests: **172**
-- Previous baseline (at `HEAD` before this test expansion): **51**
-- Tests added: **+121**
-- Coverage command: `python -m pytest --cov=keyvox --cov-report=term-missing -q`
-- Current coverage: **100%** (`920/920` statements)
-
-## Test Inventory
-
-| Test file | Count | Scope |
-|---|---:|---|
-| `tests/test_backends_base.py` | 1 | Abstract backend contract |
-| `tests/test_backends_factory.py` | 10 | Backend selection, dependency errors, factory behavior |
-| `tests/test_backends_impl.py` | 11 | Backend implementations (`faster-whisper`, `qwen-asr`, `qwen-asr-vllm`) |
-| `tests/test_config_hot_reload.py` | 7 | File reloader polling and change detection |
-| `tests/test_config_module.py` | 13 | Config load/save, merge, discovery per platform |
-| `tests/test_dictionary.py` | 4 | Dictionary matching and key normalization |
-| `tests/test_hotkey_runtime.py` | 19 | Runtime hotkey flow, paste modes, runtime reload |
-| `tests/test_hotkey_shutdown.py` | 7 | ESC/Ctrl+C shutdown paths and edge cases |
-| `tests/test_main_entrypoint.py` | 9 | CLI entrypoint paths and fatal handling |
-| `tests/test_recorder.py` | 6 | Recorder stream lifecycle and audio concatenation |
-| `tests/test_setup_wizard.py` | 8 | Wizard flows, GPU/CPU branches, cache env setup |
-| `tests/test_text_insertion.py` | 52 | Capitalization, spacing, URL normalization, WWW policy |
-| `tests/test_ui_styles.py` | 16 | Theme loading/cache/token replacement, font loading, profile resolution |
-| `tests/test_window_chrome.py` | 9 | Borderless window hit-testing and resize geometry |
-
-## TDD Standard Used
-
-1. **Red**
-   - Add or update a failing test first for each new behavior or bug path.
-2. **Green**
-   - Implement the smallest change that makes the test pass.
-3. **Refactor**
-   - Clean up while keeping tests green and behavior stable.
-4. **Regression lock**
-   - Keep a dedicated regression test for each bug fixed.
-5. **Coverage verification**
-   - Re-run with `--cov=keyvox --cov-report=term-missing` before commit.
-
-## Local Commands
+## Commands
 
 ```bash
 # Fast pass
 python -m pytest -q
 
-# Coverage gate
+# Coverage pass
 python -m pytest --cov=keyvox --cov-report=term-missing -q
 ```
 
-## Tracking Policy
+## Scope
 
-- Every new feature/bugfix should include tests in the same change.
-- Coverage drops should be treated as a blocking signal unless explicitly justified.
-- Failing tests are fixed before merge; no skipped failing suites.
+- `tests/test_main_entrypoint.py`: CLI mode selection and startup failure handling
+- `tests/test_hotkey_*.py`: runtime hotkey behavior and shutdown handling
+- `tests/test_server.py`: WebSocket protocol envelope, commands, and events
+- `tests/test_history.py`: SQLite persistence, query/filter/delete/export behavior
+- `tests/test_backends_*.py`: backend factory and backend adapter contracts
+- `tests/test_config_*.py`: config defaults, loading, merging, and hot-reload wiring
+- `tests/test_text_insertion.py`: capitalization/spacing/URL normalization rules
+
+## Policy
+
+- Add/adjust tests in the same change as behavior changes.
+- Keep regressions locked with explicit targeted tests.
+- Treat failing tests as blocking for merge.

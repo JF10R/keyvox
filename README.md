@@ -25,14 +25,10 @@ Hold a hotkey, speak, release — your words are transcribed and pasted into the
 5. **Smart text insertion** — context-aware capitalization, spacing, and URL/domain normalization
 6. **Output** — text copied to clipboard and pasted into the active window
 
-**Implemented UI components:**
+**Current interfaces:**
 
-7. **System tray** — background operation with visual state feedback (idle, recording, processing, success, error)
-
-**Future components** (see [Roadmap](#roadmap)):
-
-8. **Transcription history** — persistent, searchable log of all transcriptions
-9. **Settings UI** — graphical configuration, replacing the CLI wizard
+7. **CLI runtime** — local push-to-talk flow with direct text insertion
+8. **Desktop UI** — Tauri + Svelte app connected to `keyvox --server`
 
 This architecture is stack-agnostic — it describes *what* Keyvox does, not *how*. The current implementation uses Python with a **pluggable backend architecture** supporting multiple ASR engines (faster-whisper, Qwen3 ASR, and extensible to others).
 
@@ -153,9 +149,6 @@ pip install faster-whisper
 # AMD/Intel/Universal (qwen-asr)
 pip install qwen-asr
 
-# Optional: GUI support (system tray, visual feedback)
-pip install -e ".[gui]"
-
 # Optional: single-instance protection (Windows)
 pip install -e ".[singleton]"
 
@@ -179,31 +172,10 @@ keyvox
 
 ## Usage
 
-### GUI Mode (Default)
+### CLI Mode (Default)
 
 ```bash
 keyvox
-```
-
-1. System tray icon appears (green circle)
-   - Tray label/tooltip appears as `Keyvox`
-2. **Hold** the hotkey (default: Right Ctrl) and speak (icon turns blue, pulses)
-3. **Release** — icon shows yellow spinner during transcription, then flashes green on success
-4. Text is pasted into the active window
-5. **Double-tap** the hotkey to paste the last transcription again
-6. **Right-click** tray icon → Exit to quit
-
-**Visual feedback:**
-- **Green circle** — idle, ready
-- **Blue pulsing** — recording (hold hotkey)
-- **Yellow spinner** — processing transcription
-- **Green checkmark flash** — success
-- **Red X flash** — error
-
-### Headless Mode (CLI-only)
-
-```bash
-keyvox --headless
 ```
 
 1. **Hold** the hotkey (default: Right Ctrl) and speak
@@ -211,6 +183,14 @@ keyvox --headless
 3. **Double-tap** the hotkey to paste the last transcription again
 4. **Ctrl+C** to quit (recommended)
 5. **ESC** to quit only when supported and the Keyvox terminal is focused (`ESC` is disabled in Windows Terminal tabs)
+
+### Headless Flag (Alias)
+
+```bash
+keyvox --headless
+```
+
+Runs the same CLI runtime as `keyvox`.
 
 **Runtime config hot-reload:** Changes to `[dictionary]` and `[text_insertion]` in `config.toml` are applied automatically on the next hotkey release (no app restart required).
 
@@ -229,29 +209,83 @@ Server mode exposes the transcription engine over `ws://localhost:<port>` and is
 - Allows a single client connection at a time
 - Tries fallback ports when requested port is busy (`PORT..PORT+9`)
 - Does **not** type/paste into the local active window (engine-only mode)
+- Uses protocol version `1.0.0` with request/response correlation via `request_id`
 
-**Client commands (JSON):**
+**Command frame (client -> server):**
 
-| Type | Payload | Response |
-|------|---------|----------|
-| `get_config` | `{ "type": "get_config" }` | `config` |
-| `get_dictionary` | `{ "type": "get_dictionary" }` | `dictionary` |
-| `set_dictionary` | `{ "type": "set_dictionary", "key": "...", "value": "..." }` | `dictionary_updated` |
-| `delete_dictionary` | `{ "type": "delete_dictionary", "key": "..." }` | `dictionary_deleted` |
-| `shutdown` | `{ "type": "shutdown" }` | `shutting_down` |
+```json
+{
+  "type": "get_history",
+  "request_id": "req-42",
+  "limit": 100,
+  "offset": 0,
+  "search": ""
+}
+```
 
-**Server events (JSON):**
+**Response envelope (server -> client):**
+
+```json
+{
+  "type": "response",
+  "protocol_version": "1.0.0",
+  "timestamp": "2026-02-17T00:00:00+00:00",
+  "request_id": "req-42",
+  "response_type": "history",
+  "ok": true,
+  "result": { "entries": [], "total": 0, "limit": 100, "offset": 0, "search": "" }
+}
+```
+
+Error responses keep the same envelope with `ok: false` and an `error` object:
+
+```json
+{
+  "type": "response",
+  "ok": false,
+  "error": {
+    "code": "invalid_payload",
+    "message": "sample_rate must be a positive integer"
+  }
+}
+```
+
+**Primary commands:**
+
+| Type | Purpose |
+|------|---------|
+| `ping`, `server_info`, `get_config`, `get_full_config` | Health and configuration reads |
+| `set_config_section`, `set_hotkey`, `set_model`, `set_audio_device` | Configuration writes |
+| `get_dictionary`, `set_dictionary`, `delete_dictionary` | Dictionary management |
+| `get_history`, `delete_history_item`, `clear_history`, `export_history` | History operations |
+| `shutdown` | Graceful backend stop |
+
+**Async events (server -> client):**
 
 | Type | Fields |
 |------|--------|
 | `state` | `state: idle|recording|processing` |
-| `transcription` | `text` |
+| `transcription` | `text`, `duration_ms`, `entry` |
+| `history_appended` | `entry` |
 | `error` | `message` |
-| `config` | `hotkey`, `backend`, `model` |
-| `dictionary` | `entries` |
 | `dictionary_updated` | `key`, `value` |
 | `dictionary_deleted` | `key` |
 | `shutting_down` | none |
+
+### Desktop UI (Tauri + Svelte)
+
+The new desktop UI lives in `apps/desktop/` and consumes the WebSocket protocol above.
+
+```bash
+cd apps/desktop
+npm install
+npm run doctor
+npm run tauri dev
+```
+
+Desktop prerequisites on Windows: Rust toolchain, MSVC C++ tools, Windows SDK, WebView2.
+
+See [`docs/desktop-ui.md`](docs/desktop-ui.md) for details.
 
 ### Switching Models
 
@@ -315,6 +349,7 @@ See [BACKENDS.md](BACKENDS.md) for backend-specific configuration and switching 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `model_cache` | `""` | Model download directory (empty = HuggingFace default `~/.cache/huggingface`) |
+| `history_db` | `""` | SQLite history DB path (empty = auto path next to `config.toml`) |
 
 ### `[output]`
 
@@ -380,23 +415,14 @@ Result: "Hello, world"  (no space before comma)
 ## Testing
 
 - Full testing guide: [`docs/testing.md`](docs/testing.md)
-- Current suite: **172 tests**
-- Current module coverage (`keyvox/*`): **100%** (`920/920` statements)
+- Current suite: **177 tests**
+- Coverage command included below for local validation.
 
 Run locally:
 
 ```bash
 python -m pytest -q
 python -m pytest --cov=keyvox --cov-report=term-missing -q
-```
-
-## UI Theme Showcase
-
-Preview the latest design system (dark/light, borderless shell, component states):
-
-```bash
-pip install -e ".[gui]"
-python test_theme.py
 ```
 
 ## Autostart (Windows)
@@ -414,8 +440,8 @@ schtasks /delete /tn "Keyvox" /f
 ## Roadmap
 
 ### Current Top Priority
-- [ ] Evaluate frontend decoupling with backend engine wrapper (API/WebSocket) to support Tauri or similar cross-platform UI
-- [ ] Evaluate Tauri migration feasibility for professional cross-platform desktop UX
+- [x] WebSocket engine backend for desktop clients
+- [x] Tauri + Svelte desktop shell connected to backend protocol
 - [x] Text insertion guardrails: do not add a space when cursor is already after a space
 - [x] Text insertion guardrails: do not add a period when cursor is immediately before an existing period
 
@@ -429,15 +455,12 @@ schtasks /delete /tn "Keyvox" /f
 - [x] **Smart text insertion (context-aware capitalization and spacing)** ✅ Tested
 - [x] **URL/domain normalization (auto-detect domains and normalize casing, e.g., `Google.com` → `google.com`)** ✅ Tested
 - [x] **Runtime hot-reload for `[dictionary]` and `[text_insertion]`** ✅ Tested
-- [x] **Visual recording/processing indicator** ✅ Implemented
-  - [x] **System tray icon with 5 states (idle, recording, processing, success, error)** ✅ Implemented
-  - [x] **Animated feedback (blue pulse during recording, yellow spinner during processing)** ✅ Implemented
-  - [x] **Non-blocking transcription (Qt worker threads, no UI freeze)** ✅ Implemented
-  - [x] **GUI/headless mode toggle (--headless flag for CLI-only)** ✅ Implemented
-- [ ] Transcription history panel (timestamped, searchable, copyable)
-- [ ] SQLite-backed history storage
-- [ ] Settings panel (model, mic, hotkey — replaces CLI wizard)
-- [ ] Export transcription history (TXT, CSV)
+- [x] **Desktop control surface (Tauri + Svelte)** ✅ Implemented
+- [x] **Protocol command/response envelope with request correlation** ✅ Implemented
+- [x] **Transcription history panel (timestamped, searchable, copyable)** ✅ Implemented
+- [x] **SQLite-backed history storage** ✅ Implemented
+- [x] **Settings panel (model, mic, hotkey — replaces CLI wizard)** ✅ Implemented
+- [x] **Export transcription history (TXT, CSV)** ✅ Implemented
 
 ### v0.3 — Multi-Backend & Standalone EXE
 - [x] **Model-agnostic backend abstraction (Protocol + factory pattern)**
