@@ -394,6 +394,65 @@ button.ghost:hover {
   margin: 12px 0 0;
   color: var(--danger);
   font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+}
+
+.dictionary-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.9rem;
+}
+
+.dictionary-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 2px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.dictionary-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dictionary-table td:nth-child(2) {
+  cursor: pointer;
+}
+
+.dictionary-table td:nth-child(2):hover {
+  background: #eef4f1;
+}
+
+.dictionary-table td input {
+  width: 100%;
+  margin: 0;
+}
+
+.dictionary-table td button {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  margin-right: 4px;
+}
+
+.dictionary-add {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .notices {

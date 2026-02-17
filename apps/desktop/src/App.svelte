@@ -86,6 +86,13 @@
   let storageMigrationMessage = "";
   let storageMigrationProgressPct = 0;
 
+  let dictionaryEntries: Record<string, string> = {};
+  let dictNewKey = "";
+  let dictNewValue = "";
+  let dictEditingKey: string | null = null;
+  let dictEditingValue = "";
+  let validationErrors: Record<string, string> = {};
+
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempts = 0;
   let reconnectInFlight = false;
@@ -104,6 +111,14 @@
   $: modelCacheStatus =
     modelStatusValue === true ? STATUS_READY : modelStatusValue === false ? STATUS_MISSING : STATUS_UNKNOWN;
   $: selectedModelRequirement = modelRequirementLookup[`${modelBackend}::${modelName}`] ?? null;
+  $: {
+    if (capabilities?.compute_types?.[modelBackend]) {
+      const validComputeTypes = capabilities.compute_types[modelBackend];
+      if (!validComputeTypes.includes(modelComputeType)) {
+        modelComputeType = validComputeTypes[0] || "float16";
+      }
+    }
+  }
   $: trayStatusText =
     modelDownloadState === "loading"
       ? `Keyvox Desktop - loading model ${modelDownloadProgressPct}%`
@@ -241,6 +256,16 @@
       void refreshStorageStatus();
       return;
     }
+    if (event.type === "dictionary_updated") {
+      dictionaryEntries[event.key] = event.value;
+      dictionaryEntries = dictionaryEntries;
+      return;
+    }
+    if (event.type === "dictionary_deleted") {
+      delete dictionaryEntries[event.key];
+      dictionaryEntries = dictionaryEntries;
+      return;
+    }
     if (event.type === "error") {
       lastError = event.message;
       notify("error", event.message);
@@ -276,6 +301,7 @@
     await refreshCapabilities();
     await refreshStorageStatus();
     await refreshHistory();
+    await refreshDictionary();
   }
 
   function clearReconnectTimer(): void {
@@ -483,6 +509,9 @@
     if (result.storage_root) {
       storageRootInput = result.storage_root;
     }
+    if (result.active_target) {
+      storageMigrationState = "running";
+    }
   }
 
   async function refreshHistory(): Promise<void> {
@@ -495,6 +524,54 @@
     if (Array.isArray(entries)) {
       historyEntries = entries as HistoryEntry[];
     }
+  }
+
+  async function refreshDictionary(): Promise<void> {
+    const response = await sendCommand("get_dictionary");
+    const entries = response.result?.entries as Record<string, string> | undefined;
+    if (entries) {
+      dictionaryEntries = entries;
+    }
+  }
+
+  async function addDictionaryEntry(): Promise<void> {
+    const key = dictNewKey.trim();
+    const value = dictNewValue.trim();
+    if (!key || !value) {
+      notify("error", "Both pattern and replacement are required.");
+      return;
+    }
+    const isUpdate = key in dictionaryEntries;
+    await sendCommand("set_dictionary", { key, value });
+    dictionaryEntries[key] = value;
+    dictionaryEntries = dictionaryEntries;
+    dictNewKey = "";
+    dictNewValue = "";
+    notify("success", isUpdate ? "Updated existing entry" : "Dictionary entry added");
+  }
+
+  async function updateDictionaryEntry(key: string, value: string): Promise<void> {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      notify("error", "Replacement cannot be empty.");
+      return;
+    }
+    await sendCommand("set_dictionary", { key, value: trimmedValue });
+    dictionaryEntries[key] = trimmedValue;
+    dictionaryEntries = dictionaryEntries;
+    dictEditingKey = null;
+    dictEditingValue = "";
+    notify("success", "Dictionary entry updated");
+  }
+
+  async function deleteDictionaryEntry(key: string): Promise<void> {
+    if (!confirm(`Delete dictionary entry "${key}"?`)) {
+      return;
+    }
+    await sendCommand("delete_dictionary", { key });
+    delete dictionaryEntries[key];
+    dictionaryEntries = dictionaryEntries;
+    notify("success", "Dictionary entry deleted");
   }
 
   async function handleStartBackend(): Promise<void> {
@@ -575,10 +652,23 @@
     });
     const validationResult = validation.result as Record<string, unknown> | undefined;
     if (!validationResult || validationResult["valid"] !== true) {
+      validationErrors = {};
+      const errors = (validationResult?.errors as Array<{ field: string; message: string }>) ?? [];
+      const warnings = (validationResult?.warnings as Array<{ field: string; message: string }>) ?? [];
+      for (const err of errors) {
+        validationErrors[err.field] = err.message;
+      }
+      for (const warn of warnings) {
+        if (!validationErrors[warn.field]) {
+          validationErrors[warn.field] = warn.message;
+        }
+      }
+      validationErrors = validationErrors;
       notify("error", "Model config is invalid. Fix fields before saving.");
       return;
     }
 
+    validationErrors = {};
     await sendCommand("set_model", {
       backend: modelBackend,
       name: modelName,
@@ -745,7 +835,7 @@
       <h1>Professional Voice Workflow Console</h1>
       <p class="subtitle">Live engine status, modern controls, and full transcription operations in one workspace.</p>
     </div>
-    <div class="status-pill {connectionStatus} {modelDownloadState === 'loading' ? 'loading' : ''}">
+    <div class="status-pill {connectionStatus} {modelDownloadState === 'loading' || storageMigrationState === 'running' ? 'loading' : ''}">
       <span>{connectionStatus}</span>
       {#if boundPort}
         <small>:{boundPort}</small>
@@ -753,6 +843,9 @@
       {#if modelDownloadState === "loading"}
         <span class="loading-dot" aria-hidden="true"></span>
         <small>model loading</small>
+      {:else if storageMigrationState === "running"}
+        <span class="loading-dot" aria-hidden="true"></span>
+        <small>migrating storage</small>
       {/if}
     </div>
   </header>
@@ -850,24 +943,27 @@
 
         <div class="field-group">
           <h3>Model</h3>
-          <input
-            type="text"
-            bind:value={modelBackend}
-            placeholder="backend"
-            list="backend-options"
-          />
-          <datalist id="backend-options">
+          {#if modelDownloadState === "loading"}
+            <p class="muted">Configuration locked during download</p>
+          {/if}
+          <select bind:value={modelBackend} disabled={modelDownloadState === "loading"}>
             {#if capabilities}
               {#each capabilities.backends as backend}
-                <option value={backend.id} />
+                <option value={backend.id} disabled={!backend.available}>{backend.label}</option>
               {/each}
+            {:else}
+              <option value={modelBackend}>{modelBackend}</option>
             {/if}
-          </datalist>
+          </select>
+          {#if validationErrors["backend"]}
+            <p class="error-inline">{validationErrors["backend"]}</p>
+          {/if}
           <input
             type="text"
             bind:value={modelName}
             placeholder="model name"
             list="model-options"
+            disabled={modelDownloadState === "loading"}
           />
           <datalist id="model-options">
             {#if capabilities?.model_presets?.[modelBackend]}
@@ -876,8 +972,37 @@
               {/each}
             {/if}
           </datalist>
-          <input type="text" bind:value={modelDevice} placeholder="device" />
-          <input type="text" bind:value={modelComputeType} placeholder="compute_type" />
+          {#if validationErrors["name"]}
+            <p class="error-inline">{validationErrors["name"]}</p>
+          {/if}
+          <select bind:value={modelDevice} disabled={modelDownloadState === "loading"}>
+            {#if capabilities?.model_devices}
+              {#each capabilities.model_devices as device}
+                <option value={device}>{device}</option>
+              {/each}
+            {:else}
+              <option value={modelDevice}>{modelDevice}</option>
+            {/if}
+          </select>
+          {#if validationErrors["device"]}
+            <p class="error-inline">{validationErrors["device"]}</p>
+          {/if}
+          <select bind:value={modelComputeType} disabled={modelDownloadState === "loading"}>
+            {#if capabilities?.compute_types?.[modelBackend]}
+              {#each capabilities.compute_types[modelBackend] as computeType}
+                <option value={computeType}>{computeType}</option>
+              {/each}
+            {:else if capabilities?.compute_types?.["auto"]}
+              {#each capabilities.compute_types["auto"] as computeType}
+                <option value={computeType}>{computeType}</option>
+              {/each}
+            {:else}
+              <option value={modelComputeType}>{modelComputeType}</option>
+            {/if}
+          </select>
+          {#if validationErrors["compute_type"]}
+            <p class="error-inline">{validationErrors["compute_type"]}</p>
+          {/if}
           <p class="model-download-status {modelCacheStatus}">
             {#if modelCacheStatus === STATUS_READY}
               <span class="icon" aria-hidden="true">[ok]</span> Downloaded locally
@@ -910,7 +1035,7 @@
           <button class="ghost" on:click={downloadSelectedModel} disabled={modelDownloadState === "loading"}>
             {modelDownloadState === "loading" ? "Downloading..." : "Download Model"}
           </button>
-          <button class="ghost" on:click={saveModel}>Save Model</button>
+          <button class="ghost" on:click={saveModel} disabled={modelDownloadState === "loading"}>Save Model</button>
         </div>
 
         <div class="field-group">
@@ -937,6 +1062,7 @@
             type="text"
             bind:value={storageRootInput}
             placeholder="D:\\KeyvoxData"
+            disabled={storageMigrationState === "running"}
           />
           <p class="muted">
             Changing storage root automatically migrates existing Keyvox data
@@ -970,6 +1096,50 @@
               <span>{storageMigrationProgressPct}%</span>
             </div>
           {/if}
+        </div>
+
+        <div class="field-group">
+          <h3>Dictionary <span class="badge">{Object.keys(dictionaryEntries).length}</span></h3>
+          {#if Object.keys(dictionaryEntries).length === 0}
+            <p class="muted">No dictionary entries. Add word corrections below.</p>
+          {:else}
+            <table class="dictionary-table">
+              <thead>
+                <tr>
+                  <th>Pattern</th>
+                  <th>Replacement</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each Object.entries(dictionaryEntries) as [key, value]}
+                  <tr>
+                    {#if dictEditingKey === key}
+                      <td>{key}</td>
+                      <td>
+                        <input type="text" bind:value={dictEditingValue} />
+                      </td>
+                      <td>
+                        <button class="ghost" on:click={() => updateDictionaryEntry(key, dictEditingValue)}>Save</button>
+                        <button class="ghost" on:click={() => { dictEditingKey = null; dictEditingValue = ""; }}>Cancel</button>
+                      </td>
+                    {:else}
+                      <td>{key}</td>
+                      <td on:click={() => { dictEditingKey = key; dictEditingValue = value; }}>{value}</td>
+                      <td>
+                        <button class="ghost" on:click={() => deleteDictionaryEntry(key)}>Delete</button>
+                      </td>
+                    {/if}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {/if}
+          <div class="dictionary-add">
+            <input type="text" bind:value={dictNewKey} placeholder="Pattern (e.g., 'keyvox')" />
+            <input type="text" bind:value={dictNewValue} placeholder="Replacement (e.g., 'KeyVox')" />
+            <button class="ghost" on:click={addDictionaryEntry}>Add</button>
+          </div>
         </div>
       </div>
     </section>
