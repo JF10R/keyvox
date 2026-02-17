@@ -90,6 +90,10 @@ pytest --cov=keyvox --cov-report=html --cov-report=term
 - Config via TOML, not CLI flags (CLI only has `--setup`)
 - Hardcoded user paths are a bug — always use empty defaults or platform detection
 
+## Plans
+
+- **WebSocket engine server + Tauri frontend:** [`.design/websocket-tauri-plan.md`](.design/websocket-tauri-plan.md)
+
 ## .gitignore Notes
 
 Coverage artifacts should be added to .gitignore:
