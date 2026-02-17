@@ -18,7 +18,8 @@ keyvox/
   config.py           # TOML load/save + platform-aware discovery
   config_reload.py    # Runtime config polling
   recorder.py         # Audio capture (sounddevice)
-  hotkey.py           # Push-to-talk runtime + paste flow
+  hotkey.py           # Push-to-talk listener only (enqueues audio, no transcription)
+  pipeline.py         # Worker thread: transcription → dictionary → text insertion → output
   text_insertion.py   # Context-aware spacing/capitalization/url normalization
   dictionary.py       # Dictionary corrections
   history.py          # SQLite transcription persistence
@@ -39,7 +40,7 @@ apps/desktop/
 
 ## Key Decisions
 
-- `faster-whisper` stays default backend on NVIDIA.
+- `faster-whisper` stays default backend on NVIDIA; now optional dep (`[nvidia]` extra, not in base install).
 - `torch` stays unmanaged in project deps (user installs matching CUDA build).
 - Config lookup order: CWD first, then platform config dir.
 - Single-instance guard uses `pywin32` when installed; otherwise no-op fallback.
@@ -52,24 +53,25 @@ apps/desktop/
 - Background job guards disable config inputs during model download or storage migration.
 - `hardware.py` detects GPU at server startup; `get_capabilities` exposes hardware info and VRAM-based model recommendation.
 - Desktop UI shows GPU info and recommendation badges on model selectors.
+- Transcription runs on a dedicated worker thread (`pipeline.py`); the pynput listener thread only enqueues audio (<1ms), preventing missed keypresses during GPU inference.
 
 ## Dependency Notes
 
 | Dependency | Purpose |
 |---|---|
-| `faster-whisper` | Default ASR backend |
 | `sounddevice` | Microphone capture |
 | `pynput` | Global hotkey listener + key simulation |
 | `pyperclip` | Clipboard access |
 | `numpy` | Audio arrays |
-| `pywin32` (optional) | Windows single-instance mutex |
-| `websockets` (optional) | Server mode transport |
+| `faster-whisper` (optional `[nvidia]`) | NVIDIA ASR backend |
+| `pywin32` (optional `[singleton]`) | Windows single-instance mutex |
+| `websockets` (optional `[server]`) | Server mode transport |
 
 ## Development
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cu124
-pip install -e ".[singleton,server]"
+pip install -e ".[nvidia,singleton,server]"
 keyvox --setup
 keyvox
 ```

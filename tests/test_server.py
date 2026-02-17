@@ -808,22 +808,6 @@ def test_transcription_callback_adds_history_and_emits_events(monkeypatch):
     assert events[2]["protocol_version"] == PROTOCOL_VERSION
 
 
-def test_create_hotkey_manager_disables_local_output(monkeypatch):
-    server, _, _ = _make_server(monkeypatch)
-    captured = {}
-
-    class _FakeHotkeyManager:
-        def __init__(self, **kwargs):
-            captured.update(kwargs)
-
-    monkeypatch.setattr(server_mod, "HotkeyManager", _FakeHotkeyManager)
-
-    server._create_hotkey_manager()
-
-    assert captured["auto_paste"] is False
-    assert captured["double_tap_to_clipboard"] is False
-
-
 def test_start_ws_falls_back_to_next_port(monkeypatch):
     server, _, _ = _make_server(monkeypatch, config=_base_config())
     server.port = 7000

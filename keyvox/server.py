@@ -17,6 +17,7 @@ from .config import get_config_path, save_config
 from .dictionary import DictionaryManager
 from .history import HistoryStore
 from .hotkey import HotkeyManager
+from .pipeline import TranscriptionPipeline
 from .recorder import AudioRecorder
 from .storage import (
     estimate_migration_bytes,
@@ -98,6 +99,7 @@ class KeyvoxServer:
         self.port = port
         self._client = None  # Single connected client
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._pipeline: Optional[TranscriptionPipeline] = None
         self._hotkey_manager: Optional[HotkeyManager] = None
         self._hotkey_thread: Optional[threading.Thread] = None
         self._server = None
@@ -264,14 +266,15 @@ class KeyvoxServer:
             return False
 
     def _reload_dictionary_runtime(self) -> None:
+        # Update server-side references (used by get_dictionary command).
         self._dictionary = DictionaryManager.load_from_config(self.config)
         self._text_inserter = TextInserter(
             config=self.config.get("text_insertion", {}),
             dictionary_corrections=self._dictionary.corrections,
         )
-        if self._hotkey_manager:
-            self._hotkey_manager.dictionary = self._dictionary
-            self._hotkey_manager.text_inserter = self._text_inserter
+        # Propagate to the pipeline worker thread.
+        if self._pipeline is not None:
+            self._pipeline.reload_config(self.config)
 
     def _default_export_path(self, export_format: str) -> Path:
         base_dir = resolve_exports_dir(self.config, config_path=get_config_path())
@@ -1765,21 +1768,6 @@ class KeyvoxServer:
 
     # --- Server lifecycle ---
 
-    def _create_hotkey_manager(self) -> HotkeyManager:
-        output_config = self.config.get("output", {})
-        # Server mode is engine-only: never type/paste into local active window.
-        return HotkeyManager(
-            hotkey_name=self.config["hotkey"]["push_to_talk"],
-            recorder=self._recorder,
-            transcriber=self._transcriber,
-            dictionary=self._dictionary,
-            auto_paste=False,
-            paste_method=output_config.get("paste_method", "type"),
-            double_tap_to_clipboard=False,
-            double_tap_timeout=output_config.get("double_tap_timeout", 0.5),
-            text_inserter=self._text_inserter,
-        )
-
     async def _start_ws(self) -> int:
         """Start WebSocket server, trying ports if busy. Returns bound port."""
         import websockets
@@ -1810,12 +1798,29 @@ class KeyvoxServer:
         self.port = bound_port
         print(f"[OK] WebSocket server listening on ws://localhost:{self.port}")
 
-        self._hotkey_manager = self._create_hotkey_manager()
+        output_config = self.config.get("output", {})
+
+        # Create pipeline — server mode never pastes locally.
+        self._pipeline = TranscriptionPipeline(
+            transcriber=self._transcriber,
+            dictionary=self._dictionary,
+            text_inserter=self._text_inserter,
+            output_fn=lambda text: None,
+        )
+        self._pipeline.transcription_started = self._on_transcription_started
+        self._pipeline.transcription_completed = self._on_transcription_completed
+        self._pipeline.error_occurred = self._on_error
+        self._pipeline.start()
+
+        # Create hotkey listener — listener-only, no transcription logic.
+        self._hotkey_manager = HotkeyManager(
+            hotkey_name=self.config["hotkey"]["push_to_talk"],
+            recorder=self._recorder,
+            pipeline=self._pipeline,
+            double_tap_timeout=output_config.get("double_tap_timeout", 0.5),
+        )
         self._hotkey_manager.recording_started.connect(self._on_recording_started)
         self._hotkey_manager.recording_stopped.connect(self._on_recording_stopped)
-        self._hotkey_manager.transcription_started.connect(self._on_transcription_started)
-        self._hotkey_manager.transcription_completed.connect(self._on_transcription_completed)
-        self._hotkey_manager.error_occurred.connect(self._on_error)
 
         self._hotkey_thread = threading.Thread(
             target=self._hotkey_manager.run,
@@ -1843,6 +1848,8 @@ class KeyvoxServer:
             self._hotkey_manager.stop()
         if self._hotkey_thread and self._hotkey_thread.is_alive():
             self._hotkey_thread.join(timeout=2.0)
+        if self._pipeline is not None:
+            self._pipeline.stop()
         if self._server and self._loop and not self._loop.is_closed():
             self._server.close()
             self._loop.run_until_complete(self._server.wait_closed())

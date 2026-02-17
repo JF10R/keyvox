@@ -143,8 +143,8 @@ pip install -e .
 **Choose your backend:**
 
 ```bash
-# NVIDIA GPU (faster-whisper) - default, already installed
-pip install faster-whisper
+# NVIDIA GPU (faster-whisper)
+pip install -e ".[nvidia]"
 
 # AMD/Intel/Universal (qwen-asr)
 pip install qwen-asr
@@ -425,7 +425,7 @@ Result: "Hello, world"  (no space before comma)
 ## Testing
 
 - Full testing guide: [`docs/testing.md`](docs/testing.md)
-- Current suite: **191 tests**
+- Current suite: **194 tests**
 - Coverage command included below for local validation.
 
 Run locally:

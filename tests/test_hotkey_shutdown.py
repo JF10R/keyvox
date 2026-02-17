@@ -15,29 +15,22 @@ class _DummyRecorder:
         return None
 
 
-class _DummyTranscriber:
-    def transcribe(self, audio):
-        return ""
+class _DummyPipeline:
+    def enqueue(self, audio):
+        pass
 
+    def replay_last(self):
+        pass
 
-class _DummyDictionary:
-    corrections = {}
-
-    def apply(self, text):
-        return text
-
-    @staticmethod
-    def load_from_config(config_dict):
-        return _DummyDictionary()
+    def reload_config(self, config):
+        pass
 
 
 def _make_manager() -> HotkeyManager:
     return HotkeyManager(
         hotkey_name="ctrl_r",
         recorder=_DummyRecorder(),
-        transcriber=_DummyTranscriber(),
-        dictionary=_DummyDictionary(),
-        text_inserter=None,
+        pipeline=_DummyPipeline(),
     )
 
 

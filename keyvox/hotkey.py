@@ -4,8 +4,7 @@ import os
 import sys
 import threading
 from pynput import keyboard
-from pynput.keyboard import Key, Controller
-import pyperclip
+from pynput.keyboard import Key
 import time
 from typing import TYPE_CHECKING, Callable, List, Optional
 from .config import get_config_path, load_config
@@ -13,9 +12,8 @@ from .config_reload import FileReloader
 
 if TYPE_CHECKING:
     from .recorder import AudioRecorder
-    from .backends import TranscriberBackend
-    from .dictionary import DictionaryManager
-    from .text_insertion import TextInserter
+    from .pipeline import TranscriptionPipeline
+
 
 class _CallbackSignal:
     """Minimal Signal replacement: register callbacks, emit fires them all."""
@@ -52,44 +50,24 @@ HOTKEY_MAP = {
 
 
 class HotkeyManager(object):
-    """Manages keyboard hotkeys and transcription workflow."""
-
-    # Callback-based signals for runtime events.
-    recording_started = _CallbackSignal()
-    recording_stopped = _CallbackSignal()
-    transcription_started = _CallbackSignal()
-    transcription_completed = _CallbackSignal()
-    error_occurred = _CallbackSignal()
+    """Manages keyboard hotkeys; delegates transcription to TranscriptionPipeline."""
 
     def __init__(
         self,
         hotkey_name: str,
         recorder: "AudioRecorder",
-        transcriber: "TranscriberBackend",
-        dictionary: "DictionaryManager",
-        auto_paste: bool = True,
-        paste_method: str = "type",
-        double_tap_to_clipboard: bool = True,
+        pipeline: "TranscriptionPipeline",
         double_tap_timeout: float = 0.5,
-        text_inserter: Optional["TextInserter"] = None
     ):
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
-        self.transcriber = transcriber
-        self.dictionary = dictionary
-        self.auto_paste = auto_paste
-        self.paste_method = paste_method
-        self.text_inserter = text_inserter
-        self.kb = Controller()
+        self._pipeline = pipeline
+        self.double_tap_timeout = double_tap_timeout
 
         # Double-tap tracking
-        self.double_tap_enabled = double_tap_to_clipboard and paste_method == "type"
-        self.double_tap_timeout = double_tap_timeout
         self.last_release_time = 0.0
-        self.last_transcription = ""
         self.last_press_time = 0.0
-        # Processing flag to prevent overlapping transcriptions
-        self.is_processing = False
+
         # Windows Terminal uses global hooks + tabbed host, so ESC quit is unsafe.
         self.escape_shutdown_enabled = os.getenv("WT_SESSION") is None
         self._config_reloader = FileReloader(
@@ -104,9 +82,6 @@ class HotkeyManager(object):
         # Per-instance subscriber lists.
         self.recording_started = _CallbackSignal()
         self.recording_stopped = _CallbackSignal()
-        self.transcription_started = _CallbackSignal()
-        self.transcription_completed = _CallbackSignal()
-        self.error_occurred = _CallbackSignal()
 
     def _on_press(self, key):
         """Handle key press events."""
@@ -131,27 +106,13 @@ class HotkeyManager(object):
             # Calculate recording duration
             recording_duration = current_time - self.last_press_time
 
-            # Check for double-tap (only if enabled)
-            if self.double_tap_enabled:
-                time_since_last_release = current_time - self.last_release_time
+            # Double-tap: release within timeout window of previous release
+            time_since_last_release = current_time - self.last_release_time
+            if 0 < time_since_last_release < self.double_tap_timeout:
+                self._pipeline.replay_last()
+                self.last_release_time = 0.0  # Reset to prevent triple-tap
+                return
 
-                # Double-tap detected: copy last transcription to clipboard and paste it
-                if 0 < time_since_last_release < self.double_tap_timeout:
-                    if self.last_transcription:
-                        pyperclip.copy(self.last_transcription)
-                        self.kb.press(Key.ctrl)
-                        self.kb.press('v')
-                        self.kb.release('v')
-                        self.kb.release(Key.ctrl)
-                        print("[OK] Double-tap detected - Last transcription pasted")
-                        self.last_release_time = 0.0  # Reset to prevent triple-tap
-                        return
-                    else:
-                        print("[INFO] Double-tap detected but no previous transcription available")
-                        self.last_release_time = 0.0
-                        return
-
-            # Transcribe (skip if no audio captured)
             if audio is None:
                 return
 
@@ -159,52 +120,11 @@ class HotkeyManager(object):
             # Minimum 0.3s to avoid Whisper hallucinations on silence
             if recording_duration < 0.3:
                 print(f"[INFO] Recording too short ({recording_duration:.2f}s) - skipped")
-                # Still update last_release_time for double-tap detection
-                if self.double_tap_enabled:
-                    self.last_release_time = current_time
-                return
-
-            # Prevent overlapping transcriptions
-            if self.is_processing:
-                print("[WARN] Already processing, skipping this recording")
-                return
-
-            # Update last release time for double-tap detection (even if transcription is empty)
-            if self.double_tap_enabled:
                 self.last_release_time = current_time
+                return
 
-            self.is_processing = True
-            self.transcription_started.emit()
-            try:
-                text = self.transcriber.transcribe(audio)
-
-                # Apply dictionary corrections
-                if text:
-                    text = self.dictionary.apply(text)
-
-                    # Apply smart text insertion
-                    if self.text_inserter:
-                        text = self.text_inserter.process(text)
-
-                # Update last transcription (after all processing)
-                if text:
-                    if self.double_tap_enabled:
-                        self.last_transcription = text
-
-                    self.transcription_completed.emit(text)
-
-                    # Paste or copy transcription
-                    if self.auto_paste:
-                        self._paste_text(text)
-                    else:
-                        pyperclip.copy(text)
-                        print("[OK] Text copied to clipboard")
-            except Exception as exc:
-                message = str(exc)
-                self.error_occurred.emit(message)
-                print(f"[ERR] Transcription failed: {message}")
-            finally:
-                self.is_processing = False
+            self.last_release_time = current_time
+            self._pipeline.enqueue(audio)  # returns immediately (<1ms)
 
         elif key == Key.esc:
             if self.escape_shutdown_enabled and self._is_own_console_focused():
@@ -216,8 +136,7 @@ class HotkeyManager(object):
         """Start the hotkey listener (blocking)."""
         self._stop_requested.clear()
         print(f"[OK] Push-to-Talk enabled - Hold {self._hotkey_display_name()} to speak")
-        if self.double_tap_enabled:
-            print(f"[INFO] Double-tap {self._hotkey_display_name()} to paste last transcription")
+        print(f"[INFO] Double-tap {self._hotkey_display_name()} to paste last transcription")
         if self.escape_shutdown_enabled:
             print("[INFO] Press ESC (Keyvox terminal focused) or Ctrl+C to quit\n")
         else:
@@ -288,46 +207,7 @@ class HotkeyManager(object):
         if updated_config is None:
             return
 
-        self.dictionary = self.dictionary.__class__.load_from_config(updated_config)
-        if self.text_inserter:
-            self.text_inserter = self.text_inserter.__class__(
-                config=updated_config.get("text_insertion", {}),
-                dictionary_corrections=self.dictionary.corrections,
-            )
-        print("[INFO] Hot-reloaded config: dictionary/text_insertion")
-
-    def _paste_text(self, text: str) -> None:
-        """Paste text using the configured method."""
-        if self.paste_method == "type":
-            # Method 1: Simulate typing (no clipboard interaction)
-            self.kb.type(text)
-            print("[OK] Text typed")
-
-        elif self.paste_method == "clipboard":
-            # Method 2: Paste via Ctrl+V (uses clipboard briefly)
-            pyperclip.copy(text)
-            self.kb.press(Key.ctrl)
-            self.kb.press('v')
-            self.kb.release('v')
-            self.kb.release(Key.ctrl)
-            print("[OK] Text pasted via clipboard")
-
-        elif self.paste_method == "clipboard-restore":
-            # Method 3: Paste via Ctrl+V, then restore old clipboard
-            old_clipboard = pyperclip.paste()
-            pyperclip.copy(text)
-            self.kb.press(Key.ctrl)
-            self.kb.press('v')
-            self.kb.release('v')
-            self.kb.release(Key.ctrl)
-            pyperclip.copy(old_clipboard)
-            print("[OK] Text pasted (clipboard restored)")
-
-        else:
-            # Fallback to typing if unknown method
-            print(f"[WARN] Unknown paste_method '{self.paste_method}', falling back to 'type'")
-            self.kb.type(text)
-            print("[OK] Text typed")
+        self._pipeline.reload_config(updated_config)
 
     def _hotkey_display_name(self) -> str:
         """Get display name for hotkey."""

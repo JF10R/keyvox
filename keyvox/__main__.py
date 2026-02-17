@@ -12,6 +12,7 @@ from .backends import create_transcriber
 from .hotkey import HotkeyManager
 from .dictionary import DictionaryManager
 from .text_insertion import TextInserter
+from .pipeline import TranscriptionPipeline
 from .setup_wizard import run_wizard
 
 
@@ -31,6 +32,49 @@ def _check_single_instance() -> bool:
     except ImportError:
         # pywin32 not installed, skip single instance check
         return True
+
+
+def _make_output_fn(config):
+    """Create an output_fn closure for headless mode with paste logic."""
+    import pyperclip
+    from pynput.keyboard import Key, Controller
+
+    output_cfg = config.get("output", {})
+    auto_paste = output_cfg.get("auto_paste", True)
+    paste_method = output_cfg.get("paste_method", "type")
+    kb = Controller()
+
+    def output_fn(text: str) -> None:
+        if not auto_paste:
+            pyperclip.copy(text)
+            print("[OK] Text copied to clipboard")
+            return
+
+        if paste_method == "type":
+            kb.type(text)
+            print("[OK] Text typed")
+        elif paste_method == "clipboard":
+            pyperclip.copy(text)
+            kb.press(Key.ctrl)
+            kb.press('v')
+            kb.release('v')
+            kb.release(Key.ctrl)
+            print("[OK] Text pasted via clipboard")
+        elif paste_method == "clipboard-restore":
+            old_clipboard = pyperclip.paste()
+            pyperclip.copy(text)
+            kb.press(Key.ctrl)
+            kb.press('v')
+            kb.release('v')
+            kb.release(Key.ctrl)
+            pyperclip.copy(old_clipboard)
+            print("[OK] Text pasted (clipboard restored)")
+        else:
+            print(f"[WARN] Unknown paste_method '{paste_method}', falling back to 'type'")
+            kb.type(text)
+            print("[OK] Text typed")
+
+    return output_fn
 
 
 def _run_server_mode(config, port: int) -> None:
@@ -68,20 +112,23 @@ def _run_headless_mode(config) -> None:
             config=config.get("text_insertion", {}),
             dictionary_corrections=dictionary.corrections
         )
+
+        output_fn = _make_output_fn(config)
+        pipeline = TranscriptionPipeline(transcriber, dictionary, text_inserter, output_fn)
+        pipeline.start()
+
         hotkey_manager = HotkeyManager(
             hotkey_name=config["hotkey"]["push_to_talk"],
             recorder=recorder,
-            transcriber=transcriber,
-            dictionary=dictionary,
-            auto_paste=config["output"]["auto_paste"],
-            paste_method=config["output"]["paste_method"],
-            double_tap_to_clipboard=config["output"]["double_tap_to_clipboard"],
-            double_tap_timeout=config["output"]["double_tap_timeout"],
-            text_inserter=text_inserter
+            pipeline=pipeline,
+            double_tap_timeout=config.get("output", {}).get("double_tap_timeout", 0.5),
         )
 
         print("[OK] Keyvox initialized successfully\n")
-        hotkey_manager.run()
+        try:
+            hotkey_manager.run()
+        finally:
+            pipeline.stop()
     except KeyboardInterrupt:
         print("\n[INFO] Interrupted by user")
     except Exception as e:

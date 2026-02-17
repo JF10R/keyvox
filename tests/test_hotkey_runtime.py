@@ -1,4 +1,4 @@
-"""Runtime behavior tests for hotkey workflow and paste logic."""
+"""Runtime behavior tests for HotkeyManager (listener layer only)."""
 import types
 
 import numpy as np
@@ -23,74 +23,31 @@ class _Recorder:
         return self.stop_value
 
 
-class _Transcriber:
-    def __init__(self, result=""):
-        self.result = result
-        self.calls = 0
-
-    def transcribe(self, audio):
-        self.calls += 1
-        return self.result
-
-
-class _Dictionary:
-    def __init__(self, prefix=""):
-        self.prefix = prefix
-        self.corrections = {}
-        self.applied = []
-
-    def apply(self, text):
-        self.applied.append(text)
-        return f"{self.prefix}{text}"
-
-    @staticmethod
-    def load_from_config(config):
-        inst = _Dictionary(prefix="R:")
-        inst.corrections = {"x": "X"}
-        return inst
-
-
-class _TextInserter:
-    def __init__(self, config=None, dictionary_corrections=None):
-        self.config = config or {}
-        self.dictionary_corrections = dictionary_corrections or {}
-        self.inputs = []
-
-    def process(self, text):
-        self.inputs.append(text)
-        return f"P:{text}"
-
-
-class _KB:
+class _Pipeline:
     def __init__(self):
-        self.actions = []
+        self.enqueued = []
+        self.replayed = 0
+        self.reloaded = []
 
-    def press(self, key):
-        self.actions.append(("press", key))
+    def enqueue(self, audio):
+        self.enqueued.append(audio)
 
-    def release(self, key):
-        self.actions.append(("release", key))
+    def replay_last(self):
+        self.replayed += 1
 
-    def type(self, text):
-        self.actions.append(("type", text))
+    def reload_config(self, config):
+        self.reloaded.append(config)
 
 
 def _make_manager(**kwargs) -> HotkeyManager:
     recorder = kwargs.pop("recorder", _Recorder())
-    transcriber = kwargs.pop("transcriber", _Transcriber(""))
-    dictionary = kwargs.pop("dictionary", _Dictionary())
+    pipeline = kwargs.pop("pipeline", _Pipeline())
     manager = HotkeyManager(
         hotkey_name=kwargs.pop("hotkey_name", "ctrl_r"),
         recorder=recorder,
-        transcriber=transcriber,
-        dictionary=dictionary,
-        auto_paste=kwargs.pop("auto_paste", True),
-        paste_method=kwargs.pop("paste_method", "type"),
-        double_tap_to_clipboard=kwargs.pop("double_tap_to_clipboard", True),
+        pipeline=pipeline,
         double_tap_timeout=kwargs.pop("double_tap_timeout", 0.5),
-        text_inserter=kwargs.pop("text_inserter", _TextInserter()),
     )
-    manager.kb = _KB()
     return manager
 
 
@@ -110,134 +67,67 @@ def test_on_press_updates_timestamp_only_when_not_recording(monkeypatch):
 
 
 def test_on_release_returns_early_when_no_audio(monkeypatch):
-    manager = _make_manager(transcriber=_Transcriber("hello"))
+    pipeline = _Pipeline()
+    manager = _make_manager(pipeline=pipeline)
     manager.recorder.stop_value = None
     manager.last_press_time = 0
     monkeypatch.setattr(hotkey_module.time, "time", lambda: 1.0)
     manager._on_release(manager.hotkey)
-    assert manager.transcriber.calls == 0
+    assert pipeline.enqueued == []
 
 
 def test_on_release_skips_short_recordings(monkeypatch):
-    manager = _make_manager(transcriber=_Transcriber("hello"))
+    pipeline = _Pipeline()
+    manager = _make_manager(pipeline=pipeline)
     manager.recorder.stop_value = np.array([0.1], dtype=np.float32)
     manager.last_press_time = 10.0
     monkeypatch.setattr(hotkey_module.time, "time", lambda: 10.1)
     manager._on_release(manager.hotkey)
-    assert manager.transcriber.calls == 0
+    assert pipeline.enqueued == []
     assert manager.last_release_time == 10.1
 
 
-def test_on_release_double_tap_pastes_last_transcription(monkeypatch):
-    copied = []
-    monkeypatch.setattr(hotkey_module.pyperclip, "copy", lambda t: copied.append(t))
-
-    manager = _make_manager()
-    manager.last_transcription = "last-text"
-    manager.last_release_time = 10.0
-    manager.last_press_time = 0.0
-    manager.recorder.stop_value = None
-    monkeypatch.setattr(hotkey_module.time, "time", lambda: 10.2)
-
-    manager._on_release(manager.hotkey)
-
-    assert copied == ["last-text"]
-    assert ("press", Key.ctrl) in manager.kb.actions
-    assert ("press", "v") in manager.kb.actions
-    assert manager.last_release_time == 0.0
-
-
-def test_on_release_double_tap_without_previous_transcription(monkeypatch):
-    copied = []
-    monkeypatch.setattr(hotkey_module.pyperclip, "copy", lambda t: copied.append(t))
-
-    manager = _make_manager()
-    manager.last_transcription = ""
-    manager.last_release_time = 10.0
-    manager.last_press_time = 0.0
-    manager.recorder.stop_value = None
-    monkeypatch.setattr(hotkey_module.time, "time", lambda: 10.2)
-
-    manager._on_release(manager.hotkey)
-
-    assert copied == []
-    assert manager.last_release_time == 0.0
-
-
-def test_on_release_transcribes_applies_processing_and_copies_when_auto_paste_disabled(monkeypatch):
-    copied = []
-    monkeypatch.setattr(hotkey_module.pyperclip, "copy", lambda t: copied.append(t))
-
-    transcriber = _Transcriber("hello")
-    dictionary = _Dictionary(prefix="D:")
-    inserter = _TextInserter()
-    manager = _make_manager(
-        transcriber=transcriber,
-        dictionary=dictionary,
-        text_inserter=inserter,
-        auto_paste=False,
-    )
-    manager.recorder.stop_value = np.array([0.1, 0.2], dtype=np.float32)
+def test_on_release_enqueues_audio_on_pipeline(monkeypatch):
+    pipeline = _Pipeline()
+    manager = _make_manager(pipeline=pipeline)
+    audio = np.array([0.1, 0.2], dtype=np.float32)
+    manager.recorder.stop_value = audio
     manager.last_press_time = 0.0
     manager.last_release_time = 0.0
     monkeypatch.setattr(hotkey_module.time, "time", lambda: 1.0)
 
     manager._on_release(manager.hotkey)
 
-    assert transcriber.calls == 1
-    assert dictionary.applied == ["hello"]
-    assert inserter.inputs == ["D:hello"]
-    assert copied == ["P:D:hello"]
-    assert manager.last_transcription == "P:D:hello"
+    assert len(pipeline.enqueued) == 1
+    assert manager.last_release_time == 1.0
 
 
-def test_on_release_uses_paste_when_auto_paste_enabled(monkeypatch):
-    transcriber = _Transcriber("hello")
-    manager = _make_manager(
-        transcriber=transcriber,
-        dictionary=_Dictionary(prefix="D:"),
-        text_inserter=_TextInserter(),
-        auto_paste=True,
-    )
-    pasted = []
-    manager._paste_text = lambda text: pasted.append(text)
-    manager.recorder.stop_value = np.array([0.1, 0.2], dtype=np.float32)
+def test_on_release_double_tap_calls_replay_last(monkeypatch):
+    pipeline = _Pipeline()
+    manager = _make_manager(pipeline=pipeline)
+    manager.last_release_time = 10.0
     manager.last_press_time = 0.0
-    monkeypatch.setattr(hotkey_module.time, "time", lambda: 1.0)
+    manager.recorder.stop_value = None
+    monkeypatch.setattr(hotkey_module.time, "time", lambda: 10.2)
 
     manager._on_release(manager.hotkey)
-    assert pasted == ["P:D:hello"]
+
+    assert pipeline.replayed == 1
+    assert manager.last_release_time == 0.0  # Reset to prevent triple-tap
 
 
-def test_paste_text_type_mode():
-    manager = _make_manager(paste_method="type")
-    manager._paste_text("abc")
-    assert ("type", "abc") in manager.kb.actions
+def test_on_release_double_tap_resets_release_time(monkeypatch):
+    pipeline = _Pipeline()
+    manager = _make_manager(pipeline=pipeline)
+    manager.last_release_time = 10.0
+    manager.last_press_time = 0.0
+    manager.recorder.stop_value = None
+    monkeypatch.setattr(hotkey_module.time, "time", lambda: 10.2)
 
+    manager._on_release(manager.hotkey)
 
-def test_paste_text_clipboard_mode(monkeypatch):
-    copied = []
-    monkeypatch.setattr(hotkey_module.pyperclip, "copy", lambda t: copied.append(t))
-    manager = _make_manager(paste_method="clipboard")
-    manager._paste_text("abc")
-    assert copied == ["abc"]
-    assert ("press", Key.ctrl) in manager.kb.actions
-    assert ("press", "v") in manager.kb.actions
-
-
-def test_paste_text_clipboard_restore_mode(monkeypatch):
-    copied = []
-    monkeypatch.setattr(hotkey_module.pyperclip, "paste", lambda: "old")
-    monkeypatch.setattr(hotkey_module.pyperclip, "copy", lambda t: copied.append(t))
-    manager = _make_manager(paste_method="clipboard-restore")
-    manager._paste_text("new")
-    assert copied == ["new", "old"]
-
-
-def test_paste_text_unknown_mode_falls_back_to_type():
-    manager = _make_manager(paste_method="invalid")
-    manager._paste_text("abc")
-    assert ("type", "abc") in manager.kb.actions
+    # Reset prevents a third tap from being treated as double-tap
+    assert manager.last_release_time == 0.0
 
 
 def test_hotkey_display_name_fallback_for_unknown():
@@ -248,13 +138,11 @@ def test_hotkey_display_name_fallback_for_unknown():
 
 
 def test_maybe_reload_runtime_config_none_does_nothing():
-    manager = _make_manager()
+    pipeline = _Pipeline()
+    manager = _make_manager(pipeline=pipeline)
     manager._config_reloader = types.SimpleNamespace(poll=lambda: None)
-    before_dict = manager.dictionary
-    before_inserter = manager.text_inserter
     manager._maybe_reload_runtime_config()
-    assert manager.dictionary is before_dict
-    assert manager.text_inserter is before_inserter
+    assert pipeline.reloaded == []
 
 
 def test_maybe_reload_runtime_config_exception_does_not_raise():
@@ -264,17 +152,16 @@ def test_maybe_reload_runtime_config_exception_does_not_raise():
         raise RuntimeError("bad config")
 
     manager._config_reloader = types.SimpleNamespace(poll=boom)
-    manager._maybe_reload_runtime_config()
+    manager._maybe_reload_runtime_config()  # Must not raise
 
 
-def test_maybe_reload_runtime_config_replaces_dictionary_and_inserter():
-    manager = _make_manager(dictionary=_Dictionary(), text_inserter=_TextInserter())
-    manager._config_reloader = types.SimpleNamespace(poll=lambda: {"text_insertion": {"enabled": True}})
+def test_maybe_reload_runtime_config_calls_pipeline_reload():
+    pipeline = _Pipeline()
+    manager = _make_manager(pipeline=pipeline)
+    new_config = {"text_insertion": {"enabled": True}}
+    manager._config_reloader = types.SimpleNamespace(poll=lambda: new_config)
     manager._maybe_reload_runtime_config()
-    assert isinstance(manager.dictionary, _Dictionary)
-    assert manager.dictionary.prefix == "R:"
-    assert isinstance(manager.text_inserter, _TextInserter)
-    assert manager.text_inserter.dictionary_corrections == {"x": "X"}
+    assert pipeline.reloaded == [new_config]
 
 
 def test_is_own_console_focused_non_windows(monkeypatch):

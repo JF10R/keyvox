@@ -89,6 +89,16 @@ def test_main_headless_mode_initializes_and_runs(monkeypatch):
         def __init__(self, config, dictionary_corrections):
             calls["text_inserter"] = (config, dictionary_corrections)
 
+    class FakePipeline:
+        def __init__(self, transcriber, dictionary, text_inserter, output_fn):
+            calls["pipeline"] = True
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
     class FakeHotkeyManager:
         def __init__(self, **kwargs):
             calls["hotkey_args"] = kwargs
@@ -102,6 +112,7 @@ def test_main_headless_mode_initializes_and_runs(monkeypatch):
     monkeypatch.setattr(main_mod, "AudioRecorder", lambda sample_rate, input_device: ("REC", sample_rate, input_device))
     monkeypatch.setattr(main_mod, "DictionaryManager", FakeDictionary)
     monkeypatch.setattr(main_mod, "TextInserter", FakeTextInserter)
+    monkeypatch.setattr(main_mod, "TranscriptionPipeline", FakePipeline)
     monkeypatch.setattr(main_mod, "HotkeyManager", FakeHotkeyManager)
     monkeypatch.setattr(main_mod.sys, "argv", ["keyvox", "--headless"])
 
@@ -109,6 +120,7 @@ def test_main_headless_mode_initializes_and_runs(monkeypatch):
 
     assert calls["dict_loaded"] is True
     assert calls["text_inserter"][1] == {"a": "A"}
+    assert calls["pipeline"] is True
     assert calls["hotkey_args"]["hotkey_name"] == "ctrl_r"
     assert calls["run"] is True
 
@@ -123,6 +135,16 @@ def test_main_headless_handles_keyboard_interrupt(monkeypatch):
         def load_from_config(config):
             return FakeDictionary()
 
+    class FakePipeline:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
     class FakeHotkeyManager:
         def __init__(self, **kwargs):
             pass
@@ -136,6 +158,7 @@ def test_main_headless_handles_keyboard_interrupt(monkeypatch):
     monkeypatch.setattr(main_mod, "AudioRecorder", lambda sample_rate, input_device: object())
     monkeypatch.setattr(main_mod, "DictionaryManager", FakeDictionary)
     monkeypatch.setattr(main_mod, "TextInserter", lambda config, dictionary_corrections: object())
+    monkeypatch.setattr(main_mod, "TranscriptionPipeline", FakePipeline)
     monkeypatch.setattr(main_mod, "HotkeyManager", FakeHotkeyManager)
     monkeypatch.setattr(main_mod.sys, "argv", ["keyvox", "--headless"])
 
@@ -155,6 +178,16 @@ def test_main_default_mode_runs_headless(monkeypatch):
             calls["dict_loaded"] = True
             return FakeDictionary()
 
+    class FakePipeline:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
     class FakeHotkeyManager:
         def __init__(self, **kwargs):
             calls["hotkey_args"] = kwargs
@@ -168,6 +201,7 @@ def test_main_default_mode_runs_headless(monkeypatch):
     monkeypatch.setattr(main_mod, "AudioRecorder", lambda sample_rate, input_device: object())
     monkeypatch.setattr(main_mod, "DictionaryManager", FakeDictionary)
     monkeypatch.setattr(main_mod, "TextInserter", lambda config, dictionary_corrections: object())
+    monkeypatch.setattr(main_mod, "TranscriptionPipeline", FakePipeline)
     monkeypatch.setattr(main_mod, "HotkeyManager", FakeHotkeyManager)
     monkeypatch.setattr(main_mod.sys, "argv", ["keyvox"])
 

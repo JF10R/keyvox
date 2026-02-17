@@ -15,7 +15,8 @@ python -m pytest --cov=keyvox --cov-report=term-missing -q
 ## Scope
 
 - `tests/test_main_entrypoint.py`: CLI mode selection and startup failure handling
-- `tests/test_hotkey_*.py`: runtime hotkey behavior and shutdown handling
+- `tests/test_hotkey_*.py`: listener-layer hotkey behavior, double-tap, and shutdown handling
+- `tests/test_pipeline.py`: TranscriptionPipeline worker thread — enqueue, callbacks, error handling, reload, replay
 - `tests/test_server.py`: WebSocket protocol envelope, commands, and events
 - `tests/test_history.py`: SQLite persistence, query/filter/delete/export behavior
 - `tests/test_backends_*.py`: backend factory and backend adapter contracts
