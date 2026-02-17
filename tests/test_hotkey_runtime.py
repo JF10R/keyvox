@@ -167,7 +167,6 @@ def test_on_release_double_tap_without_previous_transcription(monkeypatch):
 def test_on_release_transcribes_applies_processing_and_copies_when_auto_paste_disabled(monkeypatch):
     copied = []
     monkeypatch.setattr(hotkey_module.pyperclip, "copy", lambda t: copied.append(t))
-    monkeypatch.setattr(hotkey_module, "GUI_AVAILABLE", False)
 
     transcriber = _Transcriber("hello")
     dictionary = _Dictionary(prefix="D:")
@@ -193,7 +192,6 @@ def test_on_release_transcribes_applies_processing_and_copies_when_auto_paste_di
 
 
 def test_on_release_uses_paste_when_auto_paste_enabled(monkeypatch):
-    monkeypatch.setattr(hotkey_module, "GUI_AVAILABLE", False)
     transcriber = _Transcriber("hello")
     manager = _make_manager(
         transcriber=transcriber,

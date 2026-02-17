@@ -17,19 +17,6 @@ if TYPE_CHECKING:
     from .dictionary import DictionaryManager
     from .text_insertion import TextInserter
 
-# --- Qt-optional base class ---
-# When PySide6 is available, HotkeyManager inherits QObject and exposes
-# real Qt Signals.  When it isn't (headless / server mode), we fall back
-# to a lightweight stub so the rest of the code doesn't need to care.
-
-try:
-    from PySide6.QtCore import QObject, Signal as _QtSignal
-
-    _HAS_QT = True
-except ImportError:
-    _HAS_QT = False
-
-
 class _CallbackSignal:
     """Minimal Signal replacement: register callbacks, emit fires them all."""
 
@@ -50,26 +37,6 @@ class _CallbackSignal:
             cb(*args)
 
 
-if _HAS_QT:
-    _Base = QObject
-
-    def _make_signal(*types):
-        return _QtSignal(*types) if types else _QtSignal()
-else:
-    _Base = object
-
-    def _make_signal(*_types):
-        return _CallbackSignal()
-
-
-# Lazy import for GUI mode (TranscriptionWorker uses Qt)
-try:
-    from .ui.transcription_worker import TranscriptionWorker
-    GUI_AVAILABLE = True
-except ImportError:
-    GUI_AVAILABLE = False
-
-
 # Mapping of string hotkey names to pynput Key objects
 HOTKEY_MAP = {
     "ctrl_r": Key.ctrl_r,
@@ -84,15 +51,15 @@ HOTKEY_MAP = {
 }
 
 
-class HotkeyManager(_Base):
+class HotkeyManager(object):
     """Manages keyboard hotkeys and transcription workflow."""
 
-    # Qt signals for UI integration (or lightweight callbacks when Qt absent)
-    recording_started = _make_signal()
-    recording_stopped = _make_signal()
-    transcription_started = _make_signal()
-    transcription_completed = _make_signal(str)
-    error_occurred = _make_signal(str)
+    # Callback-based signals for runtime events.
+    recording_started = _CallbackSignal()
+    recording_stopped = _CallbackSignal()
+    transcription_started = _CallbackSignal()
+    transcription_completed = _CallbackSignal()
+    error_occurred = _CallbackSignal()
 
     def __init__(
         self,
@@ -106,8 +73,6 @@ class HotkeyManager(_Base):
         double_tap_timeout: float = 0.5,
         text_inserter: Optional["TextInserter"] = None
     ):
-        if _HAS_QT:
-            super().__init__()
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
         self.transcriber = transcriber
@@ -136,15 +101,12 @@ class HotkeyManager(_Base):
         self._listener: Optional[keyboard.Listener] = None
         self._stop_requested = threading.Event()
 
-        # When Qt is not available, _CallbackSignal instances are per-class
-        # descriptors.  We need per-instance copies so each instance has its
-        # own subscriber list.
-        if not _HAS_QT:
-            self.recording_started = _CallbackSignal()
-            self.recording_stopped = _CallbackSignal()
-            self.transcription_started = _CallbackSignal()
-            self.transcription_completed = _CallbackSignal()
-            self.error_occurred = _CallbackSignal()
+        # Per-instance subscriber lists.
+        self.recording_started = _CallbackSignal()
+        self.recording_stopped = _CallbackSignal()
+        self.transcription_started = _CallbackSignal()
+        self.transcription_completed = _CallbackSignal()
+        self.error_occurred = _CallbackSignal()
 
     def _on_press(self, key):
         """Handle key press events."""
@@ -211,18 +173,9 @@ class HotkeyManager(_Base):
             if self.double_tap_enabled:
                 self.last_release_time = current_time
 
-            # Non-blocking transcription (GUI mode) or blocking (headless mode)
-            if GUI_AVAILABLE:
-                self.is_processing = True
-                self.transcription_started.emit()
-
-                worker = TranscriptionWorker(audio, self.transcriber, self.dictionary, self.text_inserter)
-                worker.signals.completed.connect(self._on_transcription_done)
-                worker.signals.error.connect(self._on_transcription_error)
-                QThreadPool.globalInstance().start(worker)
-            else:
-                # Headless mode: blocking transcription (original behavior)
-                self.transcription_started.emit()
+            self.is_processing = True
+            self.transcription_started.emit()
+            try:
                 text = self.transcriber.transcribe(audio)
 
                 # Apply dictionary corrections
@@ -246,6 +199,12 @@ class HotkeyManager(_Base):
                     else:
                         pyperclip.copy(text)
                         print("[OK] Text copied to clipboard")
+            except Exception as exc:
+                message = str(exc)
+                self.error_occurred.emit(message)
+                print(f"[ERR] Transcription failed: {message}")
+            finally:
+                self.is_processing = False
 
         elif key == Key.esc:
             if self.escape_shutdown_enabled and self._is_own_console_focused():
@@ -376,34 +335,3 @@ class HotkeyManager(_Base):
             if key == self.hotkey:
                 return name.upper()
         return "CTRL_R"
-
-    def _on_transcription_done(self, text: str) -> None:
-        """Handle transcription completion (called in main thread via Qt signal).
-
-        Args:
-            text: Transcribed and processed text from worker
-        """
-        self.is_processing = False
-        self.transcription_completed.emit(text)
-
-        # Update last transcription (worker already applied dictionary/text_inserter)
-        if text:
-            if self.double_tap_enabled:
-                self.last_transcription = text
-
-            # Paste or copy transcription
-            if self.auto_paste:
-                self._paste_text(text)
-            else:
-                pyperclip.copy(text)
-                print("[OK] Text copied to clipboard")
-
-    def _on_transcription_error(self, error_msg: str) -> None:
-        """Handle transcription error (called in main thread via Qt signal).
-
-        Args:
-            error_msg: Error message from worker
-        """
-        self.is_processing = False
-        self.error_occurred.emit(error_msg)
-        print(f"[ERR] Transcription failed: {error_msg}")
