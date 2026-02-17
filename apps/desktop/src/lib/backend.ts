@@ -21,14 +21,14 @@ export async function backendStatus(): Promise<BackendStatus> {
 
 export async function backendPreflight(preferredPort: number, command?: string): Promise<BackendPreflight> {
   return invoke<BackendPreflight>("backend_preflight", {
-    preferred_port: preferredPort,
+    preferredPort,
     command,
   });
 }
 
 export async function startBackend(preferredPort: number, command?: string): Promise<BackendStatus> {
   return invoke<BackendStatus>("start_backend", {
-    preferred_port: preferredPort,
+    preferredPort,
     command,
   });
 }

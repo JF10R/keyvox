@@ -91,6 +91,22 @@ def get_config_path() -> Path | None:
     return _find_config_path()
 
 
+def get_platform_config_dir() -> Path:
+    """Return the platform-specific config directory (never CWD).
+
+    This is the stable location used for saving config so it can be found
+    regardless of the working directory (e.g. when spawned by a desktop app).
+    """
+    if os.name == "nt":
+        appdata = os.getenv("APPDATA")
+        if appdata:
+            return Path(appdata) / "keyvox"
+    elif sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "keyvox"
+    xdg = os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    return Path(xdg) / "keyvox"
+
+
 def load_config(
     path: Path | None = None,
     *,

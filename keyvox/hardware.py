@@ -13,6 +13,7 @@ def detect_hardware() -> Dict[str, Any]:
                 "gpu_vendor": "none",
                 "gpu_name": "No GPU detected",
                 "gpu_vram_gb": 0,
+                "cuda_version": None,
             }
 
         device_name = torch.cuda.get_device_name(0)
@@ -26,6 +27,7 @@ def detect_hardware() -> Dict[str, Any]:
                 "gpu_vendor": "nvidia",
                 "gpu_name": device_name,
                 "gpu_vram_gb": 0,
+                "cuda_version": torch.version.cuda,
             }
 
         return {
@@ -33,6 +35,7 @@ def detect_hardware() -> Dict[str, Any]:
             "gpu_vendor": "nvidia",
             "gpu_name": device_name,
             "gpu_vram_gb": vram_gb,
+            "cuda_version": torch.version.cuda,
         }
     except ImportError:
         return {
@@ -40,6 +43,7 @@ def detect_hardware() -> Dict[str, Any]:
             "gpu_vendor": "none",
             "gpu_name": "PyTorch not installed",
             "gpu_vram_gb": 0,
+            "cuda_version": None,
         }
 
 

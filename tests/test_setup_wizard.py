@@ -39,7 +39,7 @@ def test_run_wizard_cpu_path_and_download_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(keyvox.setup_wizard, "detect_hardware", fake_detect)
     monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
-    monkeypatch.setattr(wizard.Path, "cwd", lambda: tmp_path)
+    monkeypatch.setattr(wizard, "get_platform_config_dir", lambda: tmp_path)
 
     saved = {}
 
@@ -86,7 +86,7 @@ def test_run_wizard_gpu_path_and_download_success(monkeypatch, tmp_path):
     monkeypatch.setattr(keyvox.setup_wizard, "detect_hardware", fake_detect)
     monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
-    monkeypatch.setattr(wizard.Path, "cwd", lambda: tmp_path)
+    monkeypatch.setattr(wizard, "get_platform_config_dir", lambda: tmp_path)
 
     saved = {}
     whisper_calls = {}
@@ -100,6 +100,7 @@ def test_run_wizard_gpu_path_and_download_success(monkeypatch, tmp_path):
             whisper_calls["args"] = (model_name, device, compute_type)
 
     monkeypatch.setattr(wizard, "save_config", fake_save)
+    monkeypatch.setattr(wizard, "_check_model_cached", lambda name, cache: False)
     monkeypatch.setitem(
         __import__("sys").modules,
         "faster_whisper",
@@ -134,9 +135,10 @@ def test_run_wizard_sets_hf_cache_env_when_model_cache_provided(monkeypatch, tmp
     monkeypatch.setattr(keyvox.setup_wizard, "detect_hardware", fake_detect)
     monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
-    monkeypatch.setattr(wizard.Path, "cwd", lambda: tmp_path)
+    monkeypatch.setattr(wizard, "get_platform_config_dir", lambda: tmp_path)
 
     monkeypatch.setattr(wizard, "save_config", lambda path, cfg: None)
+    monkeypatch.setattr(wizard, "_check_model_cached", lambda name, cache: False)
 
     class FakeWhisperModel:
         def __init__(self, *args, **kwargs):
