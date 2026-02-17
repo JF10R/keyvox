@@ -87,7 +87,7 @@ pytest --cov=keyvox --cov-report=html --cov-report=term
 
 - Python 3.11+ (uses `tomllib` from stdlib)
 - Minimal dependencies — no unnecessary abstractions
-- Config via TOML, not CLI flags (CLI only has `--setup`)
+- Config via TOML, not CLI config flags (CLI modes: `--setup`, `--headless`, `--server`)
 - Hardcoded user paths are a bug — always use empty defaults or platform detection
 
 ## Plans
