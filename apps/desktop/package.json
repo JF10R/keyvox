@@ -1,0 +1,24 @@
+{
+  "name": "keyvox-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "doctor": "node ./scripts/doctor.mjs",
+    "check": "npm run doctor && npm run build",
+    "preview": "vite preview",
+    "tauri": "node ./scripts/run-tauri.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "@tauri-apps/cli": "^2.0.0",
+    "svelte": "^4.2.18",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

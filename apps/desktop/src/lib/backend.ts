@@ -1,0 +1,38 @@
+import { invoke } from "@tauri-apps/api/core";
+
+export interface BackendStatus {
+  running: boolean;
+  port: number | null;
+  managed: boolean;
+}
+
+export interface BackendPreflight {
+  ok: boolean;
+  backendCommand: string;
+  executableFound: boolean;
+  portValid: boolean;
+  issueCode: string | null;
+  message: string;
+}
+
+export async function backendStatus(): Promise<BackendStatus> {
+  return invoke<BackendStatus>("backend_status");
+}
+
+export async function backendPreflight(preferredPort: number, command?: string): Promise<BackendPreflight> {
+  return invoke<BackendPreflight>("backend_preflight", {
+    preferred_port: preferredPort,
+    command,
+  });
+}
+
+export async function startBackend(preferredPort: number, command?: string): Promise<BackendStatus> {
+  return invoke<BackendStatus>("start_backend", {
+    preferred_port: preferredPort,
+    command,
+  });
+}
+
+export async function stopBackend(): Promise<BackendStatus> {
+  return invoke<BackendStatus>("stop_backend");
+}

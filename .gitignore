@@ -33,3 +33,8 @@ coverage.xml
 htmlcov/
 .tracecov/
 .pytest_cache/
+
+# Desktop app artifacts
+apps/desktop/node_modules/
+apps/desktop/dist/
+apps/desktop/src-tauri/target/
