@@ -336,7 +336,7 @@ See `config.toml.example` for all options. Key sections:
 
 See [BACKENDS.md](BACKENDS.md) for backend-specific configuration and switching instructions.
 
-> **Desktop UI:** Backend/model selection and background model download are available in `apps/desktop/`.
+> **Desktop UI:** Backend/model/device/compute selectors with capabilities-driven validation are available in `apps/desktop/`.
 
 ### `[audio]`
 
@@ -381,6 +381,8 @@ openai = "OpenAI"
 
 Words are matched with word boundaries — "github" matches but "githubbing" doesn't.
 
+> **Desktop UI:** Dictionary entries can be managed visually in `apps/desktop/` Settings (add, edit, delete without touching `config.toml`).
+
 ### `[text_insertion]`
 
 Smart capitalization and spacing based on cursor context:
@@ -423,7 +425,7 @@ Result: "Hello, world"  (no space before comma)
 ## Testing
 
 - Full testing guide: [`docs/testing.md`](docs/testing.md)
-- Current suite: **187 tests**
+- Current suite: **188 tests**
 - Coverage command included below for local validation.
 
 Run locally:
@@ -474,7 +476,12 @@ schtasks /delete /tn "Keyvox" /f
 - [x] **Model-agnostic backend abstraction (Protocol + factory pattern)**
 - [x] **Qwen3 ASR backend for AMD/Intel/NVIDIA/CPU (universal support)**
 - [x] **Auto-detect GPU vendor and select best backend**
-- [ ] UI dropdown for model/backend selection (replaces manual config editing)
+- [x] **Storage root relocation with automatic migration and free-space precheck**
+- [x] **Model download progress with byte estimates**
+- [x] **Tray loading/status updates during background operations**
+- [x] **Constrained model/backend/device selectors (capabilities-driven dropdowns)**
+- [x] **Dictionary CRUD table in desktop UI (inline edit, add, delete)**
+- [x] **Background job guards (disable config during download/migration)**
 - [ ] whisper.cpp backend (additional option for CPU-optimized inference)
 - [ ] PyInstaller packaging with bundled CUDA runtime
 - [ ] Hardware detection and automatic model recommendation based on VRAM

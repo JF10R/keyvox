@@ -22,6 +22,7 @@ keyvox/
   text_insertion.py   # Context-aware spacing/capitalization/url normalization
   dictionary.py       # Dictionary corrections
   history.py          # SQLite transcription persistence
+  storage.py          # Unified storage root management + migration
   server.py           # WebSocket protocol server over localhost
   backends/           # Transcriber backend factory + implementations
 apps/desktop/
@@ -43,6 +44,11 @@ apps/desktop/
 - Single-instance guard uses `pywin32` when installed; otherwise no-op fallback.
 - Dictionary/text insertion are hot-reloaded at runtime.
 - Server protocol uses request/response envelope with `request_id` correlation.
+- `storage.py` manages unified storage root with automatic migration and free-space precheck.
+- Capabilities endpoint (`get_capabilities`) drives UI validation for model/backend/device/compute selectors.
+- Desktop model selectors are constrained `<select>` dropdowns (not free-text), reactively filtered by capabilities.
+- Dictionary CRUD is managed via desktop UI (table with inline edit) backed by server commands.
+- Background job guards disable config inputs during model download or storage migration.
 
 ## Dependency Notes
 
