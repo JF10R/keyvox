@@ -457,81 +457,88 @@ schtasks /delete /tn "Keyvox" /f
 
 ## Roadmap
 
-### Current Top Priority
-- [x] WebSocket engine backend for desktop clients
-- [x] Tauri + Svelte desktop shell connected to backend protocol
-- [x] Text insertion guardrails: do not add a space when cursor is already after a space
-- [x] Text insertion guardrails: do not add a period when cursor is immediately before an existing period
+### What's been built
 
-### v0.2 — Desktop UI & UX Improvements
-- [x] **Clipboard management modes:**
-  - [x] **Type mode (no clipboard pollution, default)**
-  - [x] **Clipboard mode (traditional Ctrl+V paste)**
-  - [x] **Clipboard-restore mode (paste then restore previous clipboard)**
-- [x] **Double-tap to paste (tap hotkey twice to instantly paste last transcription)** ✅ Tested
-- [x] **Dictionary corrections (case-insensitive word replacements)** ✅ Tested
-- [x] **Smart text insertion (context-aware capitalization and spacing)** ✅ Tested
-- [x] **URL/domain normalization (auto-detect domains and normalize casing, e.g., `Google.com` → `google.com`)** ✅ Tested
-- [x] **Runtime hot-reload for `[dictionary]` and `[text_insertion]`** ✅ Tested
-- [x] **Desktop control surface (Tauri + Svelte)** ✅ Implemented
-- [x] **Protocol command/response envelope with request correlation** ✅ Implemented
-- [x] **Transcription history panel (timestamped, searchable, copyable)** ✅ Implemented
-- [x] **SQLite-backed history storage** ✅ Implemented
-- [x] **Settings panel (model, mic, hotkey — replaces CLI wizard)** ✅ Implemented
-- [x] **Export transcription history (TXT, CSV)** ✅ Implemented
+**Core pipeline:** push-to-talk recording → Whisper GPU transcription (async worker thread) → dictionary corrections → smart text insertion (context-aware capitalization, spacing, URL normalization) → clipboard paste. Hot-reload for dictionary and text insertion settings without restarting.
 
-### v0.3 — Multi-Backend & Standalone EXE
-- [x] **Model-agnostic backend abstraction (Protocol + factory pattern)**
-- [x] **Qwen3 ASR backend for AMD/Intel/NVIDIA/CPU (universal support)**
-- [x] **Auto-detect GPU vendor and select best backend**
-- [x] **Storage root relocation with automatic migration and free-space precheck**
-- [x] **Model download progress with byte estimates**
-- [x] **Tray icon with tooltip status (loading %, ready state)**
-- [x] **Constrained model/backend/device selectors (capabilities-driven dropdowns)**
-- [x] **Dictionary CRUD table in desktop UI (inline edit, add, delete)**
-- [x] **Background job guards (disable config during download/migration)**
-- [x] **Hardware detection and VRAM-based model recommendation in desktop UI**
-- [x] **Dark/light theme toggle with OS preference detection and localStorage persistence**
-- [x] **WCAG 2.1 AA accessibility (skip nav, focus rings, ARIA live regions, form labels, keyboard dict table)**
-- [x] **Guided PyTorch + faster-whisper installation in setup wizard (auto-detects GPU via nvidia-smi, installs correct CUDA wheel)**
-- [ ] Tray context menu (right-click: show/hide window, quit, engine state indicator)
-- [ ] Minimize to tray on window close (keep backend alive without a visible window)
-- [ ] Open at login toggle in desktop UI settings (replaces manual `schtasks` setup)
-- [ ] Actionable error messages at user-visible level (no raw Python tracebacks)
-- [ ] whisper.cpp backend (CPU-optimized inference, no Python dependency for inference)
-- [ ] PyInstaller packaging with bundled CUDA runtime
-- [ ] Windows installer (NSIS/Inno Setup — drag-to-install for non-Python users)
-- [ ] Auto-update mechanism
-- [ ] Zero-command first-run: standalone installer, no manual pip steps
+**Desktop UI (Tauri + Svelte):** settings panel, transcription history (timestamped, searchable, exportable TXT/CSV), dictionary CRUD, model download with byte-level progress, storage root migration with free-space precheck, dark/light theme, WCAG 2.1 AA accessibility.
 
-### v0.4 — Quality & CI/CD
-- [ ] CI/CD: GitHub Actions pipeline (pytest + ruff + mypy on every PR, build matrix Windows/Linux/macOS)
-- [ ] Dependency lock file for reproducible builds (uv.lock)
-- [ ] Config schema migration (version field + migration function — prevents silent breakage on format changes)
-- [ ] Language selection in config and wizard (force a specific Whisper language vs auto-detect)
-- [ ] Minimum recording duration threshold (skip transcription on accidental < 300ms tap)
-- [ ] Hotkey conflict detection in wizard (warn if chosen key is already grabbed by another app)
-- [ ] Built-in benchmark tool (compare models on your hardware: speed, VRAM, accuracy)
-- [ ] Word Error Rate (WER) evaluation per model
-- [ ] WER per language segment (quantify multilingual accuracy)
-- [ ] Language detection switch accuracy (how well does auto-detect handle mid-speech switches)
-- [ ] Punctuation and casing quality metrics
-- [ ] Publish benchmark results in README or docs site
+**Multi-backend:** faster-whisper (NVIDIA), Qwen3 ASR (AMD/Intel/NVIDIA/CPU), GPU vendor auto-detection, VRAM-based model recommendation, capabilities-driven model/backend/device/compute selectors.
 
-### v0.5 — Cross-platform
-- [ ] Linux support (X11/Wayland hotkey, XDG paths)
-- [ ] macOS support (Cmd key, Application Support paths)
+**Setup wizard:** GPU detection via `nvidia-smi`, guided PyTorch CUDA wheel install, guided faster-whisper install, microphone listing, config generation.
+
+**Server mode:** WebSocket engine backend (`keyvox --server`) with request/response correlation, async state events, and full protocol for external UIs.
+
+---
+
+### P1 — Distribution
+*Prerequisite for any non-developer user. Nothing else matters until someone can install Keyvox without knowing what pip is.*
+
+- [ ] Write `keyvox.spec` for PyInstaller: bundle app + Python runtime into a standalone directory
+- [ ] Identify and include CUDA + ctranslate2 DLLs in the PyInstaller bundle (required for GPU inference without a CUDA toolkit install)
+- [ ] Write Inno Setup (or NSIS) installer script: wraps the bundle into a double-click `.exe`
+- [ ] GitHub Actions release workflow: build the installer on version tag push, upload artifact to GitHub Releases
+- [ ] Clean-VM install test: verify the installer works on a machine with no Python, no CUDA toolkit, no prior Keyvox
+- [ ] Auto-update mechanism: check for new releases on launch, prompt user to download
+
+### P2 — Tray & System Integration
+*The tray icon exists (tooltip-only). These make Keyvox behave like a native Windows background utility instead of an app you leave open in a terminal.*
+
+- [ ] Tray context menu: right-click → Show/Hide window, Quit (Rust/Tauri `Menu` + `on_menu_event`)
+- [ ] Tray icon click: single-click toggles window visibility
+- [ ] Engine state in tray: swap tray icon file (or tooltip text) to reflect idle / recording / processing
+- [ ] Minimize to tray on window close: intercept the `CloseRequested` event; hide the window, keep backend running
+- [ ] Open at login (Windows): write/delete `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registry key
+- [ ] Open at login toggle: checkbox in the desktop UI Settings panel, writes/deletes the registry key via a Tauri command
+
+### P3 — Quality Baseline
+*Professional-grade reliability. CI catches regressions before they ship; error messages give users a path forward instead of a traceback.*
+
+- [ ] GitHub Actions: pytest on push (Windows runner, Python 3.11 + 3.12, runs on every PR)
+- [ ] GitHub Actions: ruff linting (replaces flake8 + isort + pyupgrade, single fast pass)
+- [ ] GitHub Actions: mypy type checking in strict mode on `keyvox/`
+- [ ] Dependency lock file: add `uv.lock` for reproducible installs across environments
+- [ ] Config schema version field: add `version = 1` to TOML; reject unknown versions with a clear, actionable message
+- [ ] Config migration function: `migrate_config(old_dict) → new_dict`; auto-upgrades on load so old configs never silently break
+- [ ] Actionable backend error: catch `ImportError` at backend load, print which package is missing and the exact install command
+- [ ] Actionable CUDA OOM error: detect `RuntimeError: CUDA out of memory`, suggest a smaller model by name
+- [ ] Actionable mic error: catch `sounddevice.PortAudioError`, list available devices and point to `--setup`
+- [ ] Actionable model-load error: catch corrupt/missing model files, tell user to delete the cache entry and re-download
+
+### P4 — Power User Polish
+*Gaps that power users hit quickly. Each is a small, self-contained change.*
+
+- [ ] Language config key: add `language` to `[model]` (default `null` = auto-detect); document supported values
+- [ ] Pass `language` to faster-whisper and Qwen3 ASR backends
+- [ ] Language selector in setup wizard (optional step, defaulting to auto-detect)
+- [ ] Language selector in desktop UI Settings panel
+- [ ] Minimum recording duration: add `min_duration_ms` to `[audio]` (default `300`); skip transcription and log a message on accidental short taps
+- [ ] Hotkey conflict detection: after wizard/settings hotkey selection, attempt a test-register and warn if another process holds the key
+- [ ] whisper.cpp backend via `pywhispercpp`: CPU-optimized inference, useful as a no-GPU fallback and future zero-Python packaging path
+
+### P5 — Benchmarking & Evaluation
+*Gives users data to choose the right model for their hardware. Gives the project credibility.*
+
+- [ ] Built-in benchmark command (`keyvox --benchmark`): runs a fixed audio clip set through each available model, reports RTF (real-time factor), VRAM peak, and p50/p95 latency
+- [ ] WER evaluation: compare transcription output against a reference transcript set
+- [ ] WER per language: quantify multilingual accuracy across supported languages
+- [ ] Language-switch detection accuracy: measure auto-detect reliability on mid-speech language switches
+- [ ] Publish results: add benchmark table to README or dedicated docs page
+
+### P6 — Cross-platform
+- [ ] Linux: XDG config paths, X11/Wayland hotkey (`evdev` for Wayland), `xdotool`/`ydotool` text insertion
+- [ ] macOS: Application Support paths, Cmd key support, Accessibility permission flow, `CGEventCreateKeyboardEvent` text insertion
 
 ### Future Ideas
 - [ ] Hot words / wake words (always-on listening, activate on keyword)
-- [ ] Streaming transcription (real-time text as you speak)
-- [ ] Speaker diarization (identify who is speaking)
-- [ ] Multi-language auto-detection with per-language dictionaries
+- [ ] Streaming transcription (real-time partial text as you speak)
+- [ ] Speaker diarization (identify who is speaking in multi-speaker audio)
+- [ ] Per-language dictionaries (apply different corrections depending on detected language)
 - [ ] Whisper model hot-swap (switch models without restarting)
-- [ ] Audio post-processing (noise reduction, gain normalization)
+- [ ] Audio post-processing (noise reduction, gain normalization before transcription)
 - [ ] Global search across transcription history
 - [ ] Webhook / API output (send transcriptions to external services)
-- [ ] Voice commands (trigger actions by speaking keywords)
+- [ ] Voice commands (trigger configurable actions by speaking a keyword)
 
 ## Troubleshooting
 
