@@ -109,6 +109,19 @@ h1 {
   border-color: color-mix(in srgb, var(--danger), white 60%);
 }
 
+.status-pill.loading {
+  border-color: color-mix(in srgb, var(--warn), white 45%);
+  color: var(--warn);
+}
+
+.loading-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-loading 900ms ease-in-out infinite;
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
@@ -260,6 +273,73 @@ button.ghost:hover {
   gap: 8px;
 }
 
+.model-download-status {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.model-requirement {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.model-download-status .icon {
+  font-family: "Consolas", "Courier New", monospace;
+  margin-right: 6px;
+}
+
+.model-download-status.ready {
+  color: var(--success);
+}
+
+.model-download-status.missing {
+  color: var(--warn);
+}
+
+.model-download-status.unknown {
+  color: var(--muted);
+}
+
+.model-download-detail {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.model-download-detail.loading {
+  color: var(--warn);
+}
+
+.model-download-detail.completed {
+  color: var(--success);
+}
+
+.model-download-detail.error {
+  color: var(--danger);
+}
+
+.progress-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.progress-wrap progress {
+  width: 100%;
+  height: 10px;
+}
+
+.progress-wrap span {
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 38px;
+  text-align: right;
+}
+
 .history-head,
 .history-search {
   display: flex;
@@ -343,6 +423,21 @@ button.ghost:hover {
 
 .notice.error {
   background: var(--danger);
+}
+
+@keyframes pulse-loading {
+  0% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
 }
 
 @media (max-width: 1100px) {

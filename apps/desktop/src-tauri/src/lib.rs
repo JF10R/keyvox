@@ -4,7 +4,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::tray::TrayIconBuilder;
+use tauri::{AppHandle, State};
 
 #[derive(Default)]
 struct BackendState {
@@ -278,15 +279,43 @@ fn backend_preflight(preferred_port: u16, command: Option<String>) -> BackendPre
     make_preflight(preferred_port, resolve_backend_command(command))
 }
 
+#[tauri::command]
+fn pick_storage_folder() -> Option<String> {
+    rfd::FileDialog::new()
+        .pick_folder()
+        .map(|path| path.display().to_string())
+}
+
+#[tauri::command]
+fn set_tray_status(app: AppHandle, tooltip: String) -> Result<(), String> {
+    if let Some(tray) = app.tray_by_id("main") {
+        tray.set_tooltip(Some(tooltip))
+            .map_err(|err| format!("Failed to set tray tooltip: {err}"))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let mut tray_builder = TrayIconBuilder::with_id("main").tooltip("Keyvox Desktop");
+            if let Some(icon) = app.default_window_icon().cloned() {
+                tray_builder = tray_builder.icon(icon);
+            }
+            tray_builder
+                .build(app)
+                .map_err(|err| -> Box<dyn std::error::Error> { Box::new(err) })?;
+            Ok(())
+        })
         .manage(BackendState::default())
         .invoke_handler(tauri::generate_handler![
             backend_status,
             backend_preflight,
             start_backend,
-            stop_backend
+            stop_backend,
+            pick_storage_folder,
+            set_tray_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running keyvox desktop app");

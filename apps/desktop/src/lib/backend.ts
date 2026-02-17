@@ -36,3 +36,11 @@ export async function startBackend(preferredPort: number, command?: string): Pro
 export async function stopBackend(): Promise<BackendStatus> {
   return invoke<BackendStatus>("stop_backend");
 }
+
+export async function pickStorageFolder(): Promise<string | null> {
+  return invoke<string | null>("pick_storage_folder");
+}
+
+export async function setTrayStatus(tooltip: string): Promise<void> {
+  await invoke("set_tray_status", { tooltip });
+}

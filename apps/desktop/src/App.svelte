@@ -1,12 +1,22 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
 
-  import { backendPreflight, backendStatus, startBackend, stopBackend } from "./lib/backend";
+  import {
+    backendPreflight,
+    backendStatus,
+    pickStorageFolder,
+    setTrayStatus,
+    startBackend,
+    stopBackend,
+  } from "./lib/backend";
   import type {
+    CapabilitiesResult,
     HistoryEntry,
     IncomingMessage,
+    ModelRequirement,
     ProtocolResponse,
     ServerEvent,
+    StorageStatusResult,
   } from "./lib/protocol";
   import { isProtocolResponse } from "./lib/protocol";
   import { KeyvoxWsClient } from "./lib/websocket";
@@ -59,6 +69,22 @@
   let audioDevice: string | number = "default";
   let audioSampleRate = 16000;
   let textInsertionEnabled = true;
+  let capabilities: CapabilitiesResult | null = null;
+  let modelDownloadState: "idle" | "loading" | "completed" | "error" = "idle";
+  let modelDownloadMessage = "";
+  let modelDownloadLookup: Record<string, boolean | null> = {};
+  let modelRequirementLookup: Record<string, ModelRequirement> = {};
+  let selectedModelRequirement: ModelRequirement | null = null;
+  let modelDownloadProgressPct = 0;
+  let modelDownloadBytesTotal: number | null = null;
+  let modelDownloadBytesDone: number | null = null;
+  let modelDownloadBytesRemaining: number | null = null;
+
+  let storageStatus: StorageStatusResult | null = null;
+  let storageRootInput = "";
+  let storageMigrationState: "idle" | "running" | "completed" | "error" = "idle";
+  let storageMigrationMessage = "";
+  let storageMigrationProgressPct = 0;
 
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempts = 0;
@@ -66,6 +92,28 @@
   let reconnectPaused = false;
   let runtimeIssue: RuntimeIssue = "none";
   let runtimeBlockingMessage = "";
+
+  const STATUS_UNKNOWN = "unknown";
+  const STATUS_MISSING = "missing";
+  const STATUS_READY = "ready";
+  let modelStatusValue: boolean | null | undefined = undefined;
+  let modelCacheStatus = STATUS_UNKNOWN;
+  let trayStatusText = "Keyvox Desktop - ready";
+
+  $: modelStatusValue = modelDownloadLookup[`${modelBackend}::${modelName}`];
+  $: modelCacheStatus =
+    modelStatusValue === true ? STATUS_READY : modelStatusValue === false ? STATUS_MISSING : STATUS_UNKNOWN;
+  $: selectedModelRequirement = modelRequirementLookup[`${modelBackend}::${modelName}`] ?? null;
+  $: trayStatusText =
+    modelDownloadState === "loading"
+      ? `Keyvox Desktop - loading model ${modelDownloadProgressPct}%`
+      : "Keyvox Desktop - ready";
+  $: if (typeof document !== "undefined") {
+    document.title = trayStatusText;
+  }
+  $: if (typeof window !== "undefined") {
+    void setTrayStatus(trayStatusText).catch(() => undefined);
+  }
 
   client.onStatus = (status, detail) => {
     connectionStatus = status;
@@ -138,6 +186,61 @@
       historyEntries = [event.entry, ...historyEntries].slice(0, historyLimit);
       return;
     }
+    if (event.type === "model_download_progress" || event.type === "model_download") {
+      modelDownloadMessage = `${event.backend}:${event.name} - ${event.message}`;
+      if (typeof event.progress_pct === "number") {
+        modelDownloadProgressPct = Math.max(0, Math.min(100, event.progress_pct));
+      }
+      modelDownloadBytesTotal = typeof event.bytes_total === "number" ? event.bytes_total : null;
+      modelDownloadBytesDone = typeof event.bytes_completed === "number" ? event.bytes_completed : null;
+      modelDownloadBytesRemaining = typeof event.bytes_remaining === "number" ? event.bytes_remaining : null;
+      if (
+        event.status === "starting"
+        || event.status === "resolving"
+        || event.status === "downloading"
+        || event.status === "finalizing"
+      ) {
+        modelDownloadState = "loading";
+        return;
+      }
+      if (event.status === "completed") {
+        modelDownloadState = "completed";
+        notify("success", modelDownloadMessage);
+        void refreshCapabilities();
+        return;
+      }
+      modelDownloadState = "error";
+      notify("error", modelDownloadMessage);
+      return;
+    }
+    if (event.type === "storage_migration") {
+      storageMigrationMessage = event.message;
+      storageMigrationProgressPct = event.progress_pct;
+      if (
+        event.status === "starting"
+        || event.status === "copying"
+        || event.status === "verifying"
+        || event.status === "cleanup"
+      ) {
+        storageMigrationState = "running";
+        return;
+      }
+      if (event.status === "completed") {
+        storageMigrationState = "completed";
+        storageRootInput = event.target_root;
+        notify("success", "Storage migration completed");
+        void refreshStorageStatus();
+        void refreshCapabilities();
+        return;
+      }
+      storageMigrationState = "error";
+      notify("error", event.message);
+      return;
+    }
+    if (event.type === "storage_updated") {
+      void refreshStorageStatus();
+      return;
+    }
     if (event.type === "error") {
       lastError = event.message;
       notify("error", event.message);
@@ -170,6 +273,8 @@
     await sendCommand("ping");
     await sendCommand("server_info");
     await refreshConfig();
+    await refreshCapabilities();
+    await refreshStorageStatus();
     await refreshHistory();
   }
 
@@ -259,6 +364,20 @@
     return "ready";
   }
 
+  function formatBytes(value: number | null | undefined): string {
+    if (typeof value !== "number" || Number.isNaN(value) || value < 0) {
+      return "-";
+    }
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let size = value;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+    return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  }
+
   async function runBackendPreflight(seedPort: number): Promise<void> {
     const report = await backendPreflight(seedPort, backendCommand.trim() || undefined);
     if (!report.ok) {
@@ -307,6 +426,7 @@
     const model = (config.model as Record<string, unknown> | undefined) ?? {};
     const audio = (config.audio as Record<string, unknown> | undefined) ?? {};
     const hotkey = (config.hotkey as Record<string, unknown> | undefined) ?? {};
+    const paths = (config.paths as Record<string, unknown> | undefined) ?? {};
     const textInsertion =
       (config.text_insertion as Record<string, unknown> | undefined) ?? {};
 
@@ -318,6 +438,51 @@
     audioDevice = (audio.input_device as string | number | undefined) ?? audioDevice;
     audioSampleRate = Number(audio.sample_rate ?? audioSampleRate);
     textInsertionEnabled = Boolean(textInsertion.enabled ?? textInsertionEnabled);
+    storageRootInput = String(paths.storage_root ?? storageRootInput);
+  }
+
+  async function refreshCapabilities(): Promise<void> {
+    const response = await sendCommand("get_capabilities");
+    const result = response.result as CapabilitiesResult | undefined;
+    if (!result) {
+      return;
+    }
+    capabilities = result;
+
+    const lookup: Record<string, boolean | null> = {};
+    for (const item of result.model_download_status ?? []) {
+      lookup[`${item.backend}::${item.name}`] = item.downloaded;
+    }
+    modelDownloadLookup = lookup;
+
+    const requirementLookup: Record<string, ModelRequirement> = {};
+    for (const req of result.model_requirements ?? []) {
+      requirementLookup[`${req.backend}::${req.name}`] = req;
+    }
+    modelRequirementLookup = requirementLookup;
+    if (result.storage?.storage_root) {
+      storageRootInput = result.storage.storage_root;
+    }
+
+    if (result.active_model_download) {
+      modelDownloadState = "loading";
+      modelDownloadMessage =
+        `${result.active_model_download.backend}:${result.active_model_download.name} - download in progress`;
+    } else if (modelDownloadState === "loading") {
+      modelDownloadState = "idle";
+    }
+  }
+
+  async function refreshStorageStatus(): Promise<void> {
+    const response = await sendCommand("get_storage_status");
+    const result = response.result as StorageStatusResult | undefined;
+    if (!result) {
+      return;
+    }
+    storageStatus = result;
+    if (result.storage_root) {
+      storageRootInput = result.storage_root;
+    }
   }
 
   async function refreshHistory(): Promise<void> {
@@ -402,6 +567,18 @@
   }
 
   async function saveModel(): Promise<void> {
+    const validation = await sendCommand("validate_model_config", {
+      backend: modelBackend,
+      name: modelName,
+      device: modelDevice,
+      compute_type: modelComputeType,
+    });
+    const validationResult = validation.result as Record<string, unknown> | undefined;
+    if (!validationResult || validationResult["valid"] !== true) {
+      notify("error", "Model config is invalid. Fix fields before saving.");
+      return;
+    }
+
     await sendCommand("set_model", {
       backend: modelBackend,
       name: modelName,
@@ -409,6 +586,68 @@
       compute_type: modelComputeType,
     });
     notify("success", "Model config saved. Restart backend to apply.");
+    await refreshCapabilities();
+  }
+
+  async function downloadSelectedModel(): Promise<void> {
+    if (selectedModelRequirement && selectedModelRequirement.enough_space === false) {
+      notify(
+        "error",
+        `Not enough free space for model download (${formatBytes(selectedModelRequirement.remaining_bytes)} needed).`,
+      );
+      return;
+    }
+    modelDownloadState = "loading";
+    modelDownloadProgressPct = 0;
+    modelDownloadBytesTotal = selectedModelRequirement?.estimated_total_bytes ?? null;
+    modelDownloadBytesDone = selectedModelRequirement?.already_present_bytes ?? null;
+    modelDownloadBytesRemaining = selectedModelRequirement?.remaining_bytes ?? null;
+    modelDownloadMessage = `${modelBackend}:${modelName} - queued`;
+    try {
+      const response = await sendCommand("download_model", {
+        backend: modelBackend,
+        name: modelName,
+      });
+      const result = response.result as Record<string, unknown> | undefined;
+      if (result?.already_downloaded === true) {
+        modelDownloadState = "completed";
+        modelDownloadMessage = `${modelBackend}:${modelName} - already downloaded`;
+        notify("success", "Model already downloaded locally.");
+        await refreshCapabilities();
+        return;
+      }
+      notify("info", "Model download started in background.");
+    } catch (error) {
+      modelDownloadState = "error";
+      modelDownloadMessage = `${modelBackend}:${modelName} - download failed`;
+      notify("error", `Failed to queue model download: ${String(error)}`);
+    }
+  }
+
+  async function browseStorageRoot(): Promise<void> {
+    const selected = await pickStorageFolder();
+    if (selected) {
+      storageRootInput = selected;
+    }
+  }
+
+  async function applyStorageRoot(): Promise<void> {
+    const nextRoot = storageRootInput.trim();
+    if (!nextRoot) {
+      notify("error", "Storage root cannot be empty.");
+      return;
+    }
+    storageMigrationState = "running";
+    storageMigrationProgressPct = 0;
+    storageMigrationMessage = "Preparing migration";
+    try {
+      await sendCommand("set_storage_root", { storage_root: nextRoot });
+      notify("info", "Storage migration started.");
+    } catch (error) {
+      storageMigrationState = "error";
+      storageMigrationMessage = String(error);
+      notify("error", `Storage migration failed to start: ${String(error)}`);
+    }
   }
 
   async function saveAudio(): Promise<void> {
@@ -506,10 +745,14 @@
       <h1>Professional Voice Workflow Console</h1>
       <p class="subtitle">Live engine status, modern controls, and full transcription operations in one workspace.</p>
     </div>
-    <div class="status-pill {connectionStatus}">
+    <div class="status-pill {connectionStatus} {modelDownloadState === 'loading' ? 'loading' : ''}">
       <span>{connectionStatus}</span>
       {#if boundPort}
         <small>:{boundPort}</small>
+      {/if}
+      {#if modelDownloadState === "loading"}
+        <span class="loading-dot" aria-hidden="true"></span>
+        <small>model loading</small>
       {/if}
     </div>
   </header>
@@ -607,10 +850,66 @@
 
         <div class="field-group">
           <h3>Model</h3>
-          <input type="text" bind:value={modelBackend} placeholder="backend" />
-          <input type="text" bind:value={modelName} placeholder="model name" />
+          <input
+            type="text"
+            bind:value={modelBackend}
+            placeholder="backend"
+            list="backend-options"
+          />
+          <datalist id="backend-options">
+            {#if capabilities}
+              {#each capabilities.backends as backend}
+                <option value={backend.id} />
+              {/each}
+            {/if}
+          </datalist>
+          <input
+            type="text"
+            bind:value={modelName}
+            placeholder="model name"
+            list="model-options"
+          />
+          <datalist id="model-options">
+            {#if capabilities?.model_presets?.[modelBackend]}
+              {#each capabilities.model_presets[modelBackend] as modelPreset}
+                <option value={modelPreset} />
+              {/each}
+            {/if}
+          </datalist>
           <input type="text" bind:value={modelDevice} placeholder="device" />
           <input type="text" bind:value={modelComputeType} placeholder="compute_type" />
+          <p class="model-download-status {modelCacheStatus}">
+            {#if modelCacheStatus === STATUS_READY}
+              <span class="icon" aria-hidden="true">[ok]</span> Downloaded locally
+            {:else if modelCacheStatus === STATUS_MISSING}
+              <span class="icon" aria-hidden="true">[down]</span> Not downloaded locally
+            {:else}
+              <span class="icon" aria-hidden="true">[?]</span> Local cache state unknown
+            {/if}
+          </p>
+          {#if selectedModelRequirement}
+            <p class="model-requirement">
+              Required: {formatBytes(selectedModelRequirement.remaining_bytes)} /
+              Total: {formatBytes(selectedModelRequirement.estimated_total_bytes)} /
+              Free: {formatBytes(selectedModelRequirement.disk_free_bytes)}
+            </p>
+          {/if}
+          {#if modelDownloadState === "loading" || modelDownloadState === "error" || modelDownloadState === "completed"}
+            <p class="model-download-detail {modelDownloadState}">{modelDownloadMessage || "-"}</p>
+            <div class="progress-wrap">
+              <progress max="100" value={modelDownloadProgressPct}></progress>
+              <span>{modelDownloadProgressPct}%</span>
+            </div>
+            {#if modelDownloadBytesTotal !== null}
+              <p class="model-download-detail">
+                {formatBytes(modelDownloadBytesDone)} / {formatBytes(modelDownloadBytesTotal)}
+                ({formatBytes(modelDownloadBytesRemaining)} remaining)
+              </p>
+            {/if}
+          {/if}
+          <button class="ghost" on:click={downloadSelectedModel} disabled={modelDownloadState === "loading"}>
+            {modelDownloadState === "loading" ? "Downloading..." : "Download Model"}
+          </button>
           <button class="ghost" on:click={saveModel}>Save Model</button>
         </div>
 
@@ -628,6 +927,49 @@
             Enabled
           </label>
           <button class="ghost" on:click={saveTextInsertion}>Save Text Insertion</button>
+        </div>
+
+        <div class="field-group">
+          <h3>Storage</h3>
+          <label for="storage-root">Storage Root</label>
+          <input
+            id="storage-root"
+            type="text"
+            bind:value={storageRootInput}
+            placeholder="D:\\KeyvoxData"
+          />
+          <p class="muted">
+            Changing storage root automatically migrates existing Keyvox data
+            (models/history/exports/runtime) after checking destination free space.
+          </p>
+          <div class="button-row compact">
+            <button class="ghost" on:click={browseStorageRoot}>Browse</button>
+            <button class="ghost" on:click={applyStorageRoot} disabled={storageMigrationState === "running"}>
+              {storageMigrationState === "running" ? "Migrating..." : "Apply Storage Root"}
+            </button>
+            <button class="ghost" on:click={refreshStorageStatus}>Refresh Storage</button>
+          </div>
+          {#if storageStatus}
+            <p class="model-download-detail">
+              Disk free: {formatBytes(storageStatus.disk_free_bytes)} | Migration required:
+              {formatBytes(storageStatus.migration_estimate.bytes_required)}
+            </p>
+            <p class="model-download-detail">
+              Models: {storageStatus.effective_paths.model_cache_root}
+            </p>
+            <p class="model-download-detail">
+              History DB: {storageStatus.effective_paths.history_db}
+            </p>
+          {/if}
+          {#if storageMigrationState !== "idle"}
+            <p class="model-download-detail {storageMigrationState === 'error' ? 'error' : storageMigrationState === 'completed' ? 'completed' : 'loading'}">
+              {storageMigrationMessage}
+            </p>
+            <div class="progress-wrap">
+              <progress max="100" value={storageMigrationProgressPct}></progress>
+              <span>{storageMigrationProgressPct}%</span>
+            </div>
+          {/if}
         </div>
       </div>
     </section>
