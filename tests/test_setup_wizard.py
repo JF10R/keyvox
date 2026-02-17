@@ -3,6 +3,7 @@ import builtins
 import os
 import types
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from keyvox import setup_wizard as wizard
 from keyvox import hardware
@@ -40,6 +41,7 @@ def test_run_wizard_cpu_path_and_download_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
     monkeypatch.setattr(wizard, "get_platform_config_dir", lambda: tmp_path)
+    monkeypatch.setattr(wizard, "_torch_installed", lambda: True)
 
     saved = {}
 
@@ -49,7 +51,8 @@ def test_run_wizard_cpu_path_and_download_failure(monkeypatch, tmp_path):
 
     monkeypatch.setattr(wizard, "save_config", fake_save)
 
-    answers = iter(["", "default", "", "ctrl_r", "y"])
+    # "n" skips the faster-whisper install prompt; remaining answers are unchanged
+    answers = iter(["n", "", "default", "", "ctrl_r", "y"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
 
     orig_import = builtins.__import__
@@ -87,6 +90,7 @@ def test_run_wizard_gpu_path_and_download_success(monkeypatch, tmp_path):
     monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
     monkeypatch.setattr(wizard, "get_platform_config_dir", lambda: tmp_path)
+    monkeypatch.setattr(wizard, "_torch_installed", lambda: True)
 
     saved = {}
     whisper_calls = {}
@@ -136,6 +140,7 @@ def test_run_wizard_sets_hf_cache_env_when_model_cache_provided(monkeypatch, tmp
     monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
     monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
     monkeypatch.setattr(wizard, "get_platform_config_dir", lambda: tmp_path)
+    monkeypatch.setattr(wizard, "_torch_installed", lambda: True)
 
     monkeypatch.setattr(wizard, "save_config", lambda path, cfg: None)
     monkeypatch.setattr(wizard, "_check_model_cached", lambda name, cache: False)
@@ -157,3 +162,104 @@ def test_run_wizard_sets_hf_cache_env_when_model_cache_provided(monkeypatch, tmp
 
     assert os.environ["HF_HOME"] == "D:/models"
     assert os.environ["HF_HUB_CACHE"] == str(Path("D:/models") / "hub")
+
+
+import pytest
+
+
+@pytest.mark.parametrize("cuda_version,expected_suffix", [
+    ("12.1", "cu124"),
+    ("11.8", "cu118"),
+    (None, "cpu"),
+    ("10.2", "cpu"),
+])
+def test_torch_index_url(cuda_version, expected_suffix):
+    url = wizard._torch_index_url(cuda_version)
+    assert url.endswith(expected_suffix)
+
+
+def test_detect_nvidia_smi_found(monkeypatch):
+    nvidia_smi_header = (
+        "Tue Feb 17 12:00:00 2026\n"
+        "+-----------------------------------------------------------------------------+\n"
+        "| NVIDIA-SMI 550.54   Driver Version: 550.54   CUDA Version: 12.4            |\n"
+        "+-----------------------------------------------------------------------------+\n"
+    )
+    gpu_name_output = "NVIDIA GeForce RTX 4090\n"
+
+    call_count = [0]
+
+    def fake_run(cmd, **kwargs):
+        result = MagicMock()
+        if "--query-gpu=name" in cmd:
+            result.returncode = 0
+            result.stdout = gpu_name_output
+        else:
+            result.returncode = 0
+            result.stdout = nvidia_smi_header
+        call_count[0] += 1
+        return result
+
+    monkeypatch.setattr(wizard.subprocess, "run", fake_run)
+    info = wizard._detect_nvidia_smi()
+    assert info is not None
+    assert info["gpu_name"] == "NVIDIA GeForce RTX 4090"
+    assert info["cuda_version"] == "12.4"
+
+
+def test_detect_nvidia_smi_not_found(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise FileNotFoundError("nvidia-smi not found")
+
+    monkeypatch.setattr(wizard.subprocess, "run", fake_run)
+    assert wizard._detect_nvidia_smi() is None
+
+
+def test_run_wizard_installs_torch_when_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(wizard, "_torch_installed", lambda: False)
+    monkeypatch.setattr(wizard, "_detect_nvidia_smi", lambda: {
+        "gpu_name": "RTX 4090", "cuda_version": "12.4"
+    })
+
+    pip_calls = {}
+
+    def fake_pip_install(packages, index_url=None):
+        pip_calls["packages"] = packages
+        pip_calls["index_url"] = index_url
+        return True
+
+    monkeypatch.setattr(wizard, "_pip_install", fake_pip_install)
+
+    def fake_detect():
+        return {"gpu_available": True, "gpu_vendor": "nvidia", "gpu_name": "RTX 4090", "gpu_vram_gb": 8.0}
+
+    def fake_recommend(hw):
+        return {
+            "backend": "faster-whisper",
+            "name": "large-v3-turbo",
+            "device": "cuda",
+            "compute_type": "float16",
+            "reason": "GPU",
+        }
+
+    import keyvox.setup_wizard
+    monkeypatch.setattr(keyvox.setup_wizard, "detect_hardware", fake_detect)
+    monkeypatch.setattr(keyvox.setup_wizard, "recommend_model_config", fake_recommend)
+    monkeypatch.setattr(wizard, "_list_microphones", lambda: None)
+    monkeypatch.setattr(wizard, "get_platform_config_dir", lambda: tmp_path)
+    monkeypatch.setattr(wizard, "save_config", lambda path, cfg: None)
+    monkeypatch.setattr(wizard, "_check_model_cached", lambda name, cache: True)
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "faster_whisper",
+        types.SimpleNamespace(WhisperModel=None),
+    )
+
+    # First answer "" accepts torch install; remaining answers fill the wizard
+    answers = iter(["", "", "", "", "", "n"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    wizard.run_wizard()
+
+    assert pip_calls["packages"] == ["torch"]
+    assert pip_calls["index_url"] == "https://download.pytorch.org/whl/cu124"

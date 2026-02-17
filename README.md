@@ -132,6 +132,9 @@ For other versions, see [pytorch.org/get-started](https://pytorch.org/get-starte
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
+> **Tip:** You can skip this step. `keyvox --setup` (step 3) detects your GPU via `nvidia-smi`
+> and offers to install the correct PyTorch build automatically.
+
 ### 2. Install Keyvox
 
 ```bash
@@ -165,6 +168,9 @@ keyvox --setup
 Detects your GPU and CUDA version, recommends a model, lists microphones, and generates
 `config.toml` in the platform config directory (`%APPDATA%\keyvox\` on Windows). If the
 recommended model is already in your HuggingFace cache the download step is skipped automatically.
+
+If PyTorch is not installed, the wizard detects your GPU via `nvidia-smi` and offers to install
+the correct build (CUDA or CPU) before continuing.
 
 ### 4. Start
 
@@ -480,25 +486,36 @@ schtasks /delete /tn "Keyvox" /f
 - [x] **Auto-detect GPU vendor and select best backend**
 - [x] **Storage root relocation with automatic migration and free-space precheck**
 - [x] **Model download progress with byte estimates**
-- [x] **Tray loading/status updates during background operations**
+- [x] **Tray icon with tooltip status (loading %, ready state)**
 - [x] **Constrained model/backend/device selectors (capabilities-driven dropdowns)**
 - [x] **Dictionary CRUD table in desktop UI (inline edit, add, delete)**
 - [x] **Background job guards (disable config during download/migration)**
-- [ ] whisper.cpp backend (additional option for CPU-optimized inference)
-- [ ] PyInstaller packaging with bundled CUDA runtime
 - [x] **Hardware detection and VRAM-based model recommendation in desktop UI**
 - [x] **Dark/light theme toggle with OS preference detection and localStorage persistence**
 - [x] **WCAG 2.1 AA accessibility (skip nav, focus rings, ARIA live regions, form labels, keyboard dict table)**
-- [ ] Windows installer (MSI)
+- [x] **Guided PyTorch + faster-whisper installation in setup wizard (auto-detects GPU via nvidia-smi, installs correct CUDA wheel)**
+- [ ] Tray context menu (right-click: show/hide window, quit, engine state indicator)
+- [ ] Minimize to tray on window close (keep backend alive without a visible window)
+- [ ] Open at login toggle in desktop UI settings (replaces manual `schtasks` setup)
+- [ ] Actionable error messages at user-visible level (no raw Python tracebacks)
+- [ ] whisper.cpp backend (CPU-optimized inference, no Python dependency for inference)
+- [ ] PyInstaller packaging with bundled CUDA runtime
+- [ ] Windows installer (NSIS/Inno Setup — drag-to-install for non-Python users)
 - [ ] Auto-update mechanism
+- [ ] Zero-command first-run: standalone installer, no manual pip steps
 
-### v0.4 — Quality & Benchmarking
+### v0.4 — Quality & CI/CD
+- [ ] CI/CD: GitHub Actions pipeline (pytest + ruff + mypy on every PR, build matrix Windows/Linux/macOS)
+- [ ] Dependency lock file for reproducible builds (uv.lock)
+- [ ] Config schema migration (version field + migration function — prevents silent breakage on format changes)
+- [ ] Language selection in config and wizard (force a specific Whisper language vs auto-detect)
+- [ ] Minimum recording duration threshold (skip transcription on accidental < 300ms tap)
+- [ ] Hotkey conflict detection in wizard (warn if chosen key is already grabbed by another app)
 - [ ] Built-in benchmark tool (compare models on your hardware: speed, VRAM, accuracy)
 - [ ] Word Error Rate (WER) evaluation per model
 - [ ] WER per language segment (quantify multilingual accuracy)
 - [ ] Language detection switch accuracy (how well does auto-detect handle mid-speech switches)
 - [ ] Punctuation and casing quality metrics
-- [ ] Timestamp alignment quality evaluation
 - [ ] Publish benchmark results in README or docs site
 
 ### v0.5 — Cross-platform
