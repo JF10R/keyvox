@@ -425,7 +425,7 @@ Result: "Hello, world"  (no space before comma)
 ## Testing
 
 - Full testing guide: [`docs/testing.md`](docs/testing.md)
-- Current suite: **188 tests**
+- Current suite: **191 tests**
 - Coverage command included below for local validation.
 
 Run locally:
@@ -484,7 +484,7 @@ schtasks /delete /tn "Keyvox" /f
 - [x] **Background job guards (disable config during download/migration)**
 - [ ] whisper.cpp backend (additional option for CPU-optimized inference)
 - [ ] PyInstaller packaging with bundled CUDA runtime
-- [ ] Hardware detection and automatic model recommendation based on VRAM
+- [x] **Hardware detection and VRAM-based model recommendation in desktop UI**
 - [ ] Windows installer (MSI)
 - [ ] Auto-update mechanism
 
