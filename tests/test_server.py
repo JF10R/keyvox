@@ -168,6 +168,370 @@ def test_get_config_response_envelope(monkeypatch):
     assert payload["result"]["backend"] == "faster-whisper"
 
 
+def test_get_capabilities_response(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    monkeypatch.setattr(
+        server,
+        "_backend_available",
+        lambda backend_id: backend_id in {"auto", "faster-whisper", "qwen-asr"},
+    )
+    monkeypatch.setattr(server, "_is_model_downloaded", lambda backend, name: backend != "auto")
+
+    asyncio.run(server._handle_command({"type": "get_capabilities", "request_id": "cap-1"}, ws))
+
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "capabilities", request_id="cap-1")
+    backends = payload["result"]["backends"]
+    backend_ids = {entry["id"] for entry in backends}
+    assert backend_ids == {"auto", "faster-whisper", "qwen-asr", "qwen-asr-vllm"}
+    restart_policy = payload["result"]["restart_policy"]
+    assert restart_policy["model"] is True
+    assert restart_policy["dictionary"] is False
+    assert len(payload["result"]["model_download_status"]) > 0
+    assert payload["result"]["active_model_download"] is None
+
+
+def test_get_storage_status_uses_effective_model_cache_when_storage_root_empty(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+
+    fake_status = {
+        "storage_root": "",
+        "effective_paths": {
+            "model_cache_root": "D:/keyvox/models",
+            "model_hub_cache": "D:/keyvox/models/hub",
+            "history_db": "D:/keyvox/history/history.sqlite3",
+            "exports_dir": "D:/keyvox/exports",
+            "runtime_dir": "D:/keyvox/runtime",
+        },
+        "sizes": {
+            "models_bytes": 1,
+            "history_bytes": 2,
+            "exports_bytes": 3,
+            "runtime_bytes": 4,
+            "total_bytes": 10,
+        },
+        "disk_free_bytes": 12345,
+    }
+
+    seen = {"target": None}
+
+    monkeypatch.setattr(server_mod, "get_storage_status", lambda config, config_path=None: fake_status)
+
+    def _fake_estimate(config, target_root, config_path=None):
+        seen["target"] = str(target_root)
+        return {"bytes_required": 10, "disk_free_bytes": 20, "breakdown": {}}
+
+    monkeypatch.setattr(server_mod, "estimate_migration_bytes", _fake_estimate)
+
+    asyncio.run(server._handle_command({"type": "get_storage_status", "request_id": "stor-1"}, ws))
+
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "storage_status", request_id="stor-1")
+    assert seen["target"] == "D:\\keyvox\\models"
+
+
+def test_list_audio_devices_success(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    fake_sounddevice = types.SimpleNamespace(
+        query_devices=lambda: [
+            {"name": "Output only", "max_input_channels": 0, "default_samplerate": 44100},
+            {"name": "Mic A", "max_input_channels": 1, "default_samplerate": 16000},
+            {"name": "Mic B", "max_input_channels": 2, "default_samplerate": 48000},
+        ],
+        default=types.SimpleNamespace(device=(1, 0)),
+    )
+    monkeypatch.setitem(sys.modules, "sounddevice", fake_sounddevice)
+
+    asyncio.run(
+        server._handle_command(
+            {"type": "list_audio_devices", "request_id": "aud-1"},
+            ws,
+        )
+    )
+
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "audio_devices", request_id="aud-1")
+    devices = payload["result"]["devices"]
+    assert len(devices) == 2
+    assert devices[0]["id"] == 1
+    assert devices[0]["is_default_input"] is True
+    assert payload["result"]["current_input_device"] == "default"
+
+
+def test_list_audio_devices_internal_error(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+
+    fake_sounddevice = types.SimpleNamespace(
+        query_devices=lambda: (_ for _ in ()).throw(RuntimeError("device backend failed")),
+        default=types.SimpleNamespace(device=(0, 0)),
+    )
+    monkeypatch.setitem(sys.modules, "sounddevice", fake_sounddevice)
+
+    asyncio.run(
+        server._handle_command(
+            {"type": "list_audio_devices", "request_id": "aud-2"},
+            ws,
+        )
+    )
+
+    payload = ws.sent[-1]
+    _assert_error_response(payload, "internal_error", request_id="aud-2")
+    assert "enumerate audio devices" in payload["error"]["message"]
+
+
+def test_validate_model_config_valid_and_invalid(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    monkeypatch.setattr(server, "_is_cuda_available", lambda: True)
+
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "validate_model_config",
+                "request_id": "val-ok",
+                "backend": "faster-whisper",
+                "name": " large-v3-turbo ",
+                "device": "cuda",
+                "compute_type": "float16",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "model_validation", request_id="val-ok")
+    assert payload["result"]["valid"] is True
+    assert payload["result"]["normalized"]["name"] == "large-v3-turbo"
+
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "validate_model_config",
+                "request_id": "val-bad",
+                "backend": "unknown",
+                "name": "model",
+                "device": "cpu",
+                "compute_type": "weird",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "model_validation", request_id="val-bad")
+    assert payload["result"]["valid"] is False
+    assert any(item["field"] == "backend" for item in payload["result"]["errors"])
+    assert any(item["field"] == "compute_type" for item in payload["result"]["errors"])
+
+
+def test_validate_model_config_missing_fields_and_platform(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    monkeypatch.setattr(server_mod.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(server, "_is_cuda_available", lambda: False)
+
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "validate_model_config",
+                "request_id": "val-missing",
+                "backend": "",
+                "name": " ",
+                "device": "cpu",
+                "compute_type": "float16",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "model_validation", request_id="val-missing")
+    assert payload["result"]["valid"] is False
+    assert any(item["field"] == "backend" for item in payload["result"]["errors"])
+    assert any(item["field"] == "name" for item in payload["result"]["errors"])
+
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "validate_model_config",
+                "request_id": "val-platform",
+                "backend": "qwen-asr-vllm",
+                "name": "Qwen/Qwen3-ASR-1.7B",
+                "device": "cuda",
+                "compute_type": "bfloat16",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "model_validation", request_id="val-platform")
+    assert payload["result"]["valid"] is False
+    assert any(item["code"] == "unsupported_platform" for item in payload["result"]["errors"])
+    assert any(item["code"] == "cuda_unavailable" for item in payload["result"]["warnings"])
+
+
+def test_download_model_starts_or_returns_cached(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    calls = []
+
+    monkeypatch.setattr(server, "_is_model_downloaded", lambda backend, name: False)
+
+    def _fake_worker(download_id, backend, model_name):
+        calls.append((download_id, backend, model_name))
+        server._release_download()
+
+    monkeypatch.setattr(server, "_run_model_download_worker", _fake_worker)
+
+    class _InlineThread:
+        def __init__(self, target, args, daemon):
+            self._target = target
+            self._args = args
+
+        def start(self):
+            self._target(*self._args)
+
+    monkeypatch.setattr(server_mod.threading, "Thread", _InlineThread)
+
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "download_model",
+                "request_id": "dl-1",
+                "backend": "qwen-asr",
+                "name": "Qwen/Qwen3-ASR-1.7B",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "model_download_started", request_id="dl-1")
+    assert payload["result"]["started"] is True
+    assert len(calls) == 1
+    assert calls[0][1:] == ("qwen-asr", "Qwen/Qwen3-ASR-1.7B")
+
+    monkeypatch.setattr(server, "_is_model_downloaded", lambda backend, name: True)
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "download_model",
+                "request_id": "dl-2",
+                "backend": "qwen-asr",
+                "name": "Qwen/Qwen3-ASR-1.7B",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_ok_response(payload, "model_download_started", request_id="dl-2")
+    assert payload["result"]["started"] is False
+    assert payload["result"]["already_downloaded"] is True
+
+
+def test_download_model_in_progress_and_validation(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    monkeypatch.setattr(server, "_is_model_downloaded", lambda backend, name: False)
+
+    assert server._reserve_download("faster-whisper", "large-v3-turbo") is True
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "download_model",
+                "request_id": "dl-busy",
+                "backend": "qwen-asr",
+                "name": "Qwen/Qwen3-ASR-1.7B",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_error_response(payload, "download_in_progress", request_id="dl-busy")
+    server._release_download()
+
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "download_model",
+                "request_id": "dl-invalid",
+                "backend": "auto",
+                "name": "large-v3-turbo",
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    _assert_error_response(payload, "invalid_payload", request_id="dl-invalid")
+
+
+def test_run_model_download_worker_emits_events(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    events = []
+    monkeypatch.setattr(server, "_broadcast", lambda payload: events.append(payload))
+
+    def _fake_snapshot(*, download_id, backend, model_name):
+        server._broadcast_model_download(
+            download_id=download_id,
+            status="completed",
+            backend=backend,
+            name=model_name,
+            message="Model downloaded.",
+            progress_pct=100,
+        )
+        return "Qwen/Qwen3-ASR-1.7B", 0, 0
+
+    monkeypatch.setattr(server, "_download_model_snapshot", _fake_snapshot)
+    assert server._reserve_download("qwen-asr", "Qwen/Qwen3-ASR-1.7B") is True
+
+    server._run_model_download_worker("dl-1", "qwen-asr", "Qwen/Qwen3-ASR-1.7B")
+
+    statuses = [event["status"] for event in events if event["type"] == "model_download"]
+    assert statuses == ["starting", "completed"]
+
+
+def test_set_storage_root_rejects_when_destination_space_insufficient(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+
+    monkeypatch.setattr(
+        server_mod,
+        "estimate_migration_bytes",
+        lambda config, target_root, config_path=None: {
+            "bytes_required": 10_000,
+            "disk_free_bytes": 512,
+            "breakdown": {"model_cache_root": 10_000},
+        },
+    )
+
+    thread_created = {"value": False}
+
+    class _ThreadGuard:
+        def __init__(self, *args, **kwargs):
+            thread_created["value"] = True
+
+        def start(self):
+            raise AssertionError("Storage migration worker should not start")
+
+    monkeypatch.setattr(server_mod.threading, "Thread", _ThreadGuard)
+
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "set_storage_root",
+                "request_id": "storage-1",
+                "storage_root": "D:/tmp/keyvox-storage",
+            },
+            ws,
+        )
+    )
+
+    payload = ws.sent[-1]
+    _assert_error_response(payload, "insufficient_space", request_id="storage-1")
+    assert thread_created["value"] is False
+    assert server._get_active_storage_target() is None
+
+
 def test_handler_rejects_second_client(monkeypatch):
     server, _, _ = _make_server(monkeypatch)
     server._client = object()
