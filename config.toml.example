@@ -28,6 +28,8 @@ push_to_talk = "ctrl_r"
 [paths]
 # Model cache directory (empty = default HuggingFace cache)
 model_cache = ""
+# History database path (empty = auto, next to config.toml)
+history_db = ""
 
 [output]
 # Auto-paste transcription into active window

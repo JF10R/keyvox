@@ -22,6 +22,7 @@ DEFAULT_CONFIG = {
     },
     "paths": {
         "model_cache": "",
+        "history_db": "",
     },
     "output": {
         "auto_paste": True,
