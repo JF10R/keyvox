@@ -162,7 +162,9 @@ pip install -e ".[server]"
 keyvox --setup
 ```
 
-Detects your GPU, recommends a model, lists microphones, and generates `config.toml`.
+Detects your GPU and CUDA version, recommends a model, lists microphones, and generates
+`config.toml` in the platform config directory (`%APPDATA%\keyvox\` on Windows). If the
+recommended model is already in your HuggingFace cache the download step is skipped automatically.
 
 ### 4. Start
 
@@ -485,6 +487,8 @@ schtasks /delete /tn "Keyvox" /f
 - [ ] whisper.cpp backend (additional option for CPU-optimized inference)
 - [ ] PyInstaller packaging with bundled CUDA runtime
 - [x] **Hardware detection and VRAM-based model recommendation in desktop UI**
+- [x] **Dark/light theme toggle with OS preference detection and localStorage persistence**
+- [x] **WCAG 2.1 AA accessibility (skip nav, focus rings, ARIA live regions, form labels, keyboard dict table)**
 - [ ] Windows installer (MSI)
 - [ ] Auto-update mechanism
 

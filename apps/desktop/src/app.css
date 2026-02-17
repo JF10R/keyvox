@@ -1,4 +1,5 @@
 :root {
+  /* Color tokens — light theme */
   --bg: #f3f6f5;
   --panel: #ffffff;
   --panel-soft: #f8faf9;
@@ -10,23 +11,102 @@
   --warn: #b25216;
   --danger: #a02727;
   --success: #167343;
+  --notice-info: #3d5f77;
+  --bg-ghost-hover: #eef4f1;
   --shadow: 0 18px 44px rgba(13, 34, 26, 0.08);
+  --bg-gradient:
+    radial-gradient(circle at 5% 0%, rgba(0, 127, 111, 0.12), transparent 40%),
+    radial-gradient(circle at 95% 100%, rgba(178, 82, 22, 0.1), transparent 45%),
+    var(--bg);
 
+  color-scheme: light;
   font-family: Manrope, "Segoe UI", "Helvetica Neue", sans-serif;
   color: var(--text);
+}
+
+[data-theme="dark"] {
+  /* Color tokens — dark theme */
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-soft: #0d1117;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --border: #30363d;
+  --accent: #3fb891;
+  --accent-strong: #2da679;
+  --warn: #e3b341;
+  --danger: #f85149;
+  --success: #3fb950;
+  --notice-info: #388bfd;
+  --bg-ghost-hover: #21262d;
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  --bg-gradient:
+    radial-gradient(circle at 5% 0%, rgba(63, 184, 145, 0.07), transparent 40%),
+    radial-gradient(circle at 95% 100%, rgba(227, 179, 65, 0.05), transparent 45%),
+    var(--bg);
+
+  color-scheme: dark;
+}
+
+/* Smooth theme transitions — only on structural elements to avoid fighting animations */
+body,
+.panel,
+.field-group,
+.transcript-box,
+.history-list li,
+.status-pill,
+.runtime-banner,
+.notice,
+input,
+select,
+.dictionary-table th,
+.dictionary-table td {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Screen-reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip navigation link */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 100;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0 0 10px 10px;
+  text-decoration: none;
+  transition: top 120ms ease;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 5% 0%, rgba(0, 127, 111, 0.12), transparent 40%),
-    radial-gradient(circle at 95% 100%, rgba(178, 82, 22, 0.1), transparent 45%),
-    var(--bg);
+  background: var(--bg-gradient);
 }
 
 button,
@@ -49,6 +129,34 @@ select {
   margin-bottom: 24px;
 }
 
+.hero-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.theme-toggle {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-ghost-hover);
+  transform: none;
+}
+
 .runtime-banner {
   margin: 0 0 18px;
   border: 1px solid color-mix(in srgb, var(--danger), white 55%);
@@ -57,6 +165,11 @@ select {
   border-radius: 12px;
   padding: 11px 12px;
   font-weight: 600;
+}
+
+[data-theme="dark"] .runtime-banner {
+  background: color-mix(in srgb, var(--danger), black 75%);
+  border-color: color-mix(in srgb, var(--danger), black 40%);
 }
 
 .eyebrow {
@@ -95,22 +208,22 @@ h1 {
 
 .status-pill.connected {
   color: var(--success);
-  border-color: color-mix(in srgb, var(--success), white 60%);
+  border-color: color-mix(in srgb, var(--success), transparent 40%);
 }
 
 .status-pill.connecting {
   color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn), white 60%);
+  border-color: color-mix(in srgb, var(--warn), transparent 40%);
 }
 
 .status-pill.error,
 .status-pill.disconnected {
   color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger), white 60%);
+  border-color: color-mix(in srgb, var(--danger), transparent 40%);
 }
 
 .status-pill.loading {
-  border-color: color-mix(in srgb, var(--warn), white 45%);
+  border-color: color-mix(in srgb, var(--warn), transparent 40%);
   color: var(--warn);
 }
 
@@ -179,6 +292,17 @@ select {
   color: var(--text);
 }
 
+/* Focus ring — visible for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Remove outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;
@@ -219,7 +343,8 @@ button.ghost {
 }
 
 button.ghost:hover {
-  background: #eef4f1;
+  background: var(--bg-ghost-hover);
+  transform: translateY(-1px);
 }
 
 .kv {
@@ -429,12 +554,14 @@ button.ghost:hover {
   border-bottom: 1px solid var(--border);
 }
 
-.dictionary-table td:nth-child(2) {
+.dictionary-table td:nth-child(2)[role="button"] {
   cursor: pointer;
 }
 
-.dictionary-table td:nth-child(2):hover {
-  background: #eef4f1;
+.dictionary-table td:nth-child(2)[role="button"]:hover,
+.dictionary-table td:nth-child(2)[role="button"]:focus-visible {
+  background: var(--bg-ghost-hover);
+  border-radius: 6px;
 }
 
 .dictionary-table td input {
@@ -462,18 +589,24 @@ button.ghost:hover {
   display: grid;
   gap: 8px;
   z-index: 20;
+  pointer-events: none;
 }
 
 .notice {
   max-width: 360px;
   border-radius: 10px;
-  padding: 11px 12px;
+  padding: 10px 12px;
   color: white;
   box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: all;
 }
 
 .notice.info {
-  background: #3d5f77;
+  background: var(--notice-info);
 }
 
 .notice.success {
@@ -482,6 +615,26 @@ button.ghost:hover {
 
 .notice.error {
   background: var(--danger);
+}
+
+.notice-dismiss {
+  background: transparent;
+  border: 0;
+  color: white;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.75;
+  cursor: pointer;
+  font-weight: 400;
+  transition: opacity 120ms ease;
+  flex-shrink: 0;
+}
+
+.notice-dismiss:hover {
+  opacity: 1;
+  background: transparent;
+  transform: none;
 }
 
 @keyframes pulse-loading {

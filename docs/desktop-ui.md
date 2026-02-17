@@ -33,6 +33,38 @@ This app is a production-oriented desktop interface for Keyvox, backed by `keyvo
 - Tray tooltip status updates (ready/loading) and native storage folder picker
 - SQLite-backed history browsing, search, delete, clear, and export
 - Hardware detection display (GPU name + VRAM) and VRAM-based model recommendation badges on selectors
+- Dark/light theme toggle with OS preference detection and `localStorage` persistence
+- WCAG 2.1 AA accessibility: skip navigation, focus-visible rings, ARIA live regions, form labels,
+  validation error associations (`aria-describedby`), keyboard-navigable dictionary table, dismissible toasts
+
+## Theme
+
+The UI supports dark and light themes. On first load, the OS `prefers-color-scheme` preference is
+used; subsequent launches use the last saved preference from `localStorage`.
+
+The toggle button (☾/☀) is in the top-right of the header. Theme is stored under the key
+`keyvox-theme` as `"dark"` or `"light"`.
+
+Implementation: CSS custom properties on `:root` + overrides under `[data-theme="dark"]` on `<html>`.
+Transitions are applied only to structural elements (`background-color`, `border-color`, `color`)
+to avoid interfering with button/animation timing.
+
+## Accessibility
+
+The UI targets WCAG 2.1 AA compliance:
+
+- **Skip link** — `Skip to content` appears on focus for keyboard users
+- **Focus ring** — `:focus-visible` outline on all interactive elements in accent color
+- **ARIA live regions** — engine state (`aria-live="polite"`), toast notifications (`role="log"`),
+  validation errors (`role="alert"`)
+- **Form labels** — all inputs and selects have explicit `<label>` associations or `aria-label`
+- **Validation errors** — model config fields use `aria-invalid` + `aria-describedby` to
+  programmatically associate errors with their inputs
+- **Dictionary table** — replacement cell has `role="button"`, `tabindex="0"`, Enter/Space handler;
+  column headers have `scope="col"`
+- **Progress elements** — `aria-label` with percentage on all `<progress>` bars
+- **Dismissible toasts** — each notification has a `×` close button
+- **`type="button"`** — all standalone buttons to prevent accidental form submission
 
 ## Dev setup
 

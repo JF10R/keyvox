@@ -99,6 +99,18 @@
   let reconnectPaused = false;
   let runtimeIssue: RuntimeIssue = "none";
   let runtimeBlockingMessage = "";
+  let isDarkTheme = false;
+
+  function toggleTheme(): void {
+    isDarkTheme = !isDarkTheme;
+    const theme = isDarkTheme ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("keyvox-theme", theme);
+  }
+
+  function dismissNotice(id: number): void {
+    notices = notices.filter((n) => n.id !== id);
+  }
 
   const STATUS_UNKNOWN = "unknown";
   const STATUS_MISSING = "missing";
@@ -797,6 +809,12 @@
   }
 
   onMount(async () => {
+    // Theme init — saved preference first, then OS preference
+    const savedTheme = localStorage.getItem("keyvox-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    isDarkTheme = savedTheme ? savedTheme === "dark" : prefersDark;
+    document.documentElement.setAttribute("data-theme", isDarkTheme ? "dark" : "light");
+
     booting = true;
     resetReconnectState();
     try {
@@ -828,6 +846,7 @@
   });
 </script>
 
+<a href="#main-content" class="skip-link">Skip to content</a>
 <div class="app-shell">
   <header class="hero">
     <div>
@@ -835,18 +854,30 @@
       <h1>Professional Voice Workflow Console</h1>
       <p class="subtitle">Live engine status, modern controls, and full transcription operations in one workspace.</p>
     </div>
-    <div class="status-pill {connectionStatus} {modelDownloadState === 'loading' || storageMigrationState === 'running' ? 'loading' : ''}">
-      <span>{connectionStatus}</span>
-      {#if boundPort}
-        <small>:{boundPort}</small>
-      {/if}
-      {#if modelDownloadState === "loading"}
-        <span class="loading-dot" aria-hidden="true"></span>
-        <small>model loading</small>
-      {:else if storageMigrationState === "running"}
-        <span class="loading-dot" aria-hidden="true"></span>
-        <small>migrating storage</small>
-      {/if}
+    <div class="hero-controls">
+      <button
+        type="button"
+        class="theme-toggle"
+        on:click={toggleTheme}
+        aria-label={isDarkTheme ? "Switch to light theme" : "Switch to dark theme"}
+      >{isDarkTheme ? "☀" : "☾"}</button>
+      <div
+        class="status-pill {connectionStatus} {modelDownloadState === 'loading' || storageMigrationState === 'running' ? 'loading' : ''}"
+        role="status"
+        aria-label="Connection: {connectionStatus}{boundPort ? ', port ' + boundPort : ''}"
+      >
+        <span aria-hidden="true">{connectionStatus}</span>
+        {#if boundPort}
+          <small aria-hidden="true">:{boundPort}</small>
+        {/if}
+        {#if modelDownloadState === "loading"}
+          <span class="loading-dot" aria-hidden="true"></span>
+          <small>model loading</small>
+        {:else if storageMigrationState === "running"}
+          <span class="loading-dot" aria-hidden="true"></span>
+          <small>migrating storage</small>
+        {/if}
+      </div>
     </div>
   </header>
   {#if runtimeBlockingMessage}
@@ -855,7 +886,7 @@
     </div>
   {/if}
 
-  <main class="grid">
+  <main id="main-content" class="grid">
     <section class="panel connection">
       <h2>Engine Control</h2>
       <div class="row">
@@ -878,9 +909,9 @@
         />
       </div>
       <div class="button-row">
-        <button on:click={handleStartBackend} disabled={booting}>Start Backend</button>
-        <button class="ghost" on:click={handleStopBackend} disabled={!backendManaged}>Stop Managed Backend</button>
-        <button class="ghost" on:click={handleReconnect} disabled={booting || reconnectInFlight}>Reconnect</button>
+        <button type="button" on:click={handleStartBackend} disabled={booting}>Start Backend</button>
+        <button type="button" class="ghost" on:click={handleStopBackend} disabled={!backendManaged}>Stop Managed Backend</button>
+        <button type="button" class="ghost" on:click={handleReconnect} disabled={booting || reconnectInFlight}>Reconnect</button>
       </div>
       <dl class="kv">
         <div>
@@ -889,7 +920,7 @@
         </div>
         <div>
           <dt>Engine State</dt>
-          <dd>{engineState}</dd>
+          <dd role="status" aria-live="polite">{engineState}</dd>
         </div>
         <div>
           <dt>Protocol</dt>
@@ -927,8 +958,8 @@
         {/if}
       </div>
       <div class="button-row">
-        <button class="ghost" on:click={() => copyTranscript(lastTranscript)} disabled={!lastTranscript}>Copy</button>
-        <button class="ghost" on:click={refreshHistory}>Refresh History</button>
+        <button type="button" class="ghost" on:click={() => copyTranscript(lastTranscript)} disabled={!lastTranscript}>Copy</button>
+        <button type="button" class="ghost" on:click={refreshHistory}>Refresh History</button>
       </div>
     </section>
 
@@ -937,8 +968,9 @@
       <div class="settings-grid">
         <div class="field-group">
           <h3>Hotkey</h3>
-          <input type="text" bind:value={hotkeyInput} />
-          <button class="ghost" on:click={saveHotkey}>Save Hotkey</button>
+          <label for="hotkey-input">Push-to-talk key</label>
+          <input id="hotkey-input" type="text" bind:value={hotkeyInput} />
+          <button type="button" class="ghost" on:click={saveHotkey}>Save Hotkey</button>
         </div>
 
         <div class="field-group">
@@ -955,7 +987,15 @@
           {#if modelDownloadState === "loading"}
             <p class="muted">Configuration locked during download</p>
           {/if}
-          <select bind:value={modelBackend} disabled={modelDownloadState === "loading"}>
+          <label for="model-backend">Backend</label>
+          <select
+            id="model-backend"
+            bind:value={modelBackend}
+            disabled={modelDownloadState === "loading"}
+            aria-label="Model backend"
+            aria-invalid={validationErrors["backend"] ? true : undefined}
+            aria-describedby={validationErrors["backend"] ? "err-backend" : undefined}
+          >
             {#if capabilities}
               {#each capabilities.backends as backend}
                 <option value={backend.id} disabled={!backend.available}>
@@ -967,29 +1007,45 @@
             {/if}
           </select>
           {#if validationErrors["backend"]}
-            <p class="error-inline">{validationErrors["backend"]}</p>
+            <p id="err-backend" class="error-inline" role="alert">{validationErrors["backend"]}</p>
           {/if}
-          <input
-            type="text"
+          <label for="model-name">Model</label>
+          <select
+            id="model-name"
             bind:value={modelName}
-            placeholder="model name"
-            list="model-options"
             disabled={modelDownloadState === "loading"}
-          />
-          <datalist id="model-options">
+            aria-label="Model name"
+            aria-invalid={validationErrors["name"] ? true : undefined}
+            aria-describedby={validationErrors["name"] ? "err-name" : undefined}
+          >
             {#if capabilities?.model_presets?.[modelBackend]}
+              {#if !capabilities.model_presets[modelBackend].includes(modelName)}
+                <option value={modelName}>{modelName} (custom)</option>
+              {/if}
               {#each capabilities.model_presets[modelBackend] as modelPreset}
-                <option value={modelPreset} />
+                <option value={modelPreset}>
+                  {modelPreset}{capabilities.recommendation?.name === modelPreset && capabilities.recommendation.backend === modelBackend ? " ★" : ""}
+                </option>
               {/each}
+            {:else}
+              <option value={modelName}>{modelName}</option>
             {/if}
-          </datalist>
+          </select>
           {#if capabilities?.recommendation && capabilities.recommendation.backend === modelBackend}
             <p class="muted">Recommended: {capabilities.recommendation.name}</p>
           {/if}
           {#if validationErrors["name"]}
-            <p class="error-inline">{validationErrors["name"]}</p>
+            <p id="err-name" class="error-inline" role="alert">{validationErrors["name"]}</p>
           {/if}
-          <select bind:value={modelDevice} disabled={modelDownloadState === "loading"}>
+          <label for="model-device">Device</label>
+          <select
+            id="model-device"
+            bind:value={modelDevice}
+            disabled={modelDownloadState === "loading"}
+            aria-label="Compute device"
+            aria-invalid={validationErrors["device"] ? true : undefined}
+            aria-describedby={validationErrors["device"] ? "err-device" : undefined}
+          >
             {#if capabilities?.model_devices}
               {#each capabilities.model_devices as device}
                 <option value={device}>
@@ -1001,9 +1057,17 @@
             {/if}
           </select>
           {#if validationErrors["device"]}
-            <p class="error-inline">{validationErrors["device"]}</p>
+            <p id="err-device" class="error-inline" role="alert">{validationErrors["device"]}</p>
           {/if}
-          <select bind:value={modelComputeType} disabled={modelDownloadState === "loading"}>
+          <label for="model-compute-type">Compute type</label>
+          <select
+            id="model-compute-type"
+            bind:value={modelComputeType}
+            disabled={modelDownloadState === "loading"}
+            aria-label="Compute type"
+            aria-invalid={validationErrors["compute_type"] ? true : undefined}
+            aria-describedby={validationErrors["compute_type"] ? "err-compute-type" : undefined}
+          >
             {#if capabilities?.compute_types?.[modelBackend]}
               {#each capabilities.compute_types[modelBackend] as computeType}
                 <option value={computeType}>
@@ -1024,7 +1088,7 @@
             <p class="muted">{capabilities.recommendation.reason}</p>
           {/if}
           {#if validationErrors["compute_type"]}
-            <p class="error-inline">{validationErrors["compute_type"]}</p>
+            <p id="err-compute-type" class="error-inline" role="alert">{validationErrors["compute_type"]}</p>
           {/if}
           <p class="model-download-status {modelCacheStatus}">
             {#if modelCacheStatus === STATUS_READY}
@@ -1045,8 +1109,8 @@
           {#if modelDownloadState === "loading" || modelDownloadState === "error" || modelDownloadState === "completed"}
             <p class="model-download-detail {modelDownloadState}">{modelDownloadMessage || "-"}</p>
             <div class="progress-wrap">
-              <progress max="100" value={modelDownloadProgressPct}></progress>
-              <span>{modelDownloadProgressPct}%</span>
+              <progress max="100" value={modelDownloadProgressPct} aria-label="Model download: {modelDownloadProgressPct}%"></progress>
+              <span aria-hidden="true">{modelDownloadProgressPct}%</span>
             </div>
             {#if modelDownloadBytesTotal !== null}
               <p class="model-download-detail">
@@ -1055,26 +1119,28 @@
               </p>
             {/if}
           {/if}
-          <button class="ghost" on:click={downloadSelectedModel} disabled={modelDownloadState === "loading"}>
+          <button type="button" class="ghost" on:click={downloadSelectedModel} disabled={modelDownloadState === "loading"}>
             {modelDownloadState === "loading" ? "Downloading..." : "Download Model"}
           </button>
-          <button class="ghost" on:click={saveModel} disabled={modelDownloadState === "loading"}>Save Model</button>
+          <button type="button" class="ghost" on:click={saveModel} disabled={modelDownloadState === "loading"}>Save Model</button>
         </div>
 
         <div class="field-group">
           <h3>Audio</h3>
-          <input type="text" bind:value={audioDevice} placeholder="input device" />
-          <input type="number" bind:value={audioSampleRate} min="8000" max="96000" />
-          <button class="ghost" on:click={saveAudio}>Save Audio</button>
+          <label for="audio-device">Input device</label>
+          <input id="audio-device" type="text" bind:value={audioDevice} placeholder="default" />
+          <label for="audio-sample-rate">Sample rate (Hz)</label>
+          <input id="audio-sample-rate" type="number" bind:value={audioSampleRate} min="8000" max="96000" />
+          <button type="button" class="ghost" on:click={saveAudio}>Save Audio</button>
         </div>
 
         <div class="field-group">
           <h3>Text Insertion</h3>
           <label class="checkbox">
             <input type="checkbox" bind:checked={textInsertionEnabled} />
-            Enabled
+            Enable text insertion
           </label>
-          <button class="ghost" on:click={saveTextInsertion}>Save Text Insertion</button>
+          <button type="button" class="ghost" on:click={saveTextInsertion}>Save Text Insertion</button>
         </div>
 
         <div class="field-group">
@@ -1092,11 +1158,11 @@
             (models/history/exports/runtime) after checking destination free space.
           </p>
           <div class="button-row compact">
-            <button class="ghost" on:click={browseStorageRoot}>Browse</button>
-            <button class="ghost" on:click={applyStorageRoot} disabled={storageMigrationState === "running"}>
+            <button type="button" class="ghost" on:click={browseStorageRoot}>Browse</button>
+            <button type="button" class="ghost" on:click={applyStorageRoot} disabled={storageMigrationState === "running"}>
               {storageMigrationState === "running" ? "Migrating..." : "Apply Storage Root"}
             </button>
-            <button class="ghost" on:click={refreshStorageStatus}>Refresh Storage</button>
+            <button type="button" class="ghost" on:click={refreshStorageStatus}>Refresh Storage</button>
           </div>
           {#if storageStatus}
             <p class="model-download-detail">
@@ -1115,8 +1181,8 @@
               {storageMigrationMessage}
             </p>
             <div class="progress-wrap">
-              <progress max="100" value={storageMigrationProgressPct}></progress>
-              <span>{storageMigrationProgressPct}%</span>
+              <progress max="100" value={storageMigrationProgressPct} aria-label="Storage migration: {storageMigrationProgressPct}%"></progress>
+              <span aria-hidden="true">{storageMigrationProgressPct}%</span>
             </div>
           {/if}
         </div>
@@ -1129,9 +1195,9 @@
             <table class="dictionary-table">
               <thead>
                 <tr>
-                  <th>Pattern</th>
-                  <th>Replacement</th>
-                  <th></th>
+                  <th scope="col">Pattern</th>
+                  <th scope="col">Replacement</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -1143,14 +1209,20 @@
                         <input type="text" bind:value={dictEditingValue} />
                       </td>
                       <td>
-                        <button class="ghost" on:click={() => updateDictionaryEntry(key, dictEditingValue)}>Save</button>
-                        <button class="ghost" on:click={() => { dictEditingKey = null; dictEditingValue = ""; }}>Cancel</button>
+                        <button type="button" class="ghost" on:click={() => updateDictionaryEntry(key, dictEditingValue)}>Save</button>
+                        <button type="button" class="ghost" on:click={() => { dictEditingKey = null; dictEditingValue = ""; }}>Cancel</button>
                       </td>
                     {:else}
                       <td>{key}</td>
-                      <td on:click={() => { dictEditingKey = key; dictEditingValue = value; }}>{value}</td>
+                      <td
+                        role="button"
+                        tabindex="0"
+                        aria-label="Edit replacement for {key}"
+                        on:click={() => { dictEditingKey = key; dictEditingValue = value; }}
+                        on:keydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); dictEditingKey = key; dictEditingValue = value; } }}
+                      >{value}</td>
                       <td>
-                        <button class="ghost" on:click={() => deleteDictionaryEntry(key)}>Delete</button>
+                        <button type="button" class="ghost" on:click={() => deleteDictionaryEntry(key)}>Delete</button>
                       </td>
                     {/if}
                   </tr>
@@ -1159,9 +1231,9 @@
             </table>
           {/if}
           <div class="dictionary-add">
-            <input type="text" bind:value={dictNewKey} placeholder="Pattern (e.g., 'keyvox')" />
-            <input type="text" bind:value={dictNewValue} placeholder="Replacement (e.g., 'KeyVox')" />
-            <button class="ghost" on:click={addDictionaryEntry}>Add</button>
+            <input type="text" bind:value={dictNewKey} placeholder="Pattern (e.g., 'keyvox')" aria-label="New dictionary pattern" />
+            <input type="text" bind:value={dictNewValue} placeholder="Replacement (e.g., 'KeyVox')" aria-label="New dictionary replacement" />
+            <button type="button" class="ghost" on:click={addDictionaryEntry}>Add</button>
           </div>
         </div>
       </div>
@@ -1171,22 +1243,24 @@
       <div class="history-head">
         <h2>History</h2>
         <div class="button-row compact">
-          <button class="ghost" on:click={clearHistory}>Clear</button>
-          <select bind:value={exportFormat}>
+          <button type="button" class="ghost" on:click={clearHistory}>Clear</button>
+          <select bind:value={exportFormat} aria-label="Export format">
             <option value="txt">TXT</option>
             <option value="csv">CSV</option>
           </select>
-          <button class="ghost" on:click={exportHistory}>Export</button>
+          <button type="button" class="ghost" on:click={exportHistory}>Export</button>
         </div>
       </div>
 
       <div class="history-search">
+        <label for="history-search" class="sr-only">Search transcription history</label>
         <input
+          id="history-search"
           type="text"
           bind:value={historySearch}
           placeholder="Search transcript text"
         />
-        <button class="ghost" on:click={refreshHistory}>Search</button>
+        <button type="button" class="ghost" on:click={refreshHistory} aria-label="Search history">Search</button>
       </div>
 
       <ul class="history-list">
@@ -1203,8 +1277,8 @@
               </div>
               <p>{entry.text}</p>
               <div class="button-row compact">
-                <button class="ghost" on:click={() => copyTranscript(entry.text)}>Copy</button>
-                <button class="ghost" on:click={() => deleteHistoryItem(entry.id)}>Delete</button>
+                <button type="button" class="ghost" on:click={() => copyTranscript(entry.text)}>Copy</button>
+                <button type="button" class="ghost" on:click={() => deleteHistoryItem(entry.id)}>Delete</button>
               </div>
             </li>
           {/each}
@@ -1213,9 +1287,12 @@
     </section>
   </main>
 
-  <aside class="notices">
+  <aside class="notices" aria-live="polite" role="log" aria-label="Notifications">
     {#each notices as notice (notice.id)}
-      <div class="notice {notice.level}">{notice.text}</div>
+      <div class="notice {notice.level}" role="alert">
+        <span>{notice.text}</span>
+        <button type="button" class="notice-dismiss" on:click={() => dismissNotice(notice.id)} aria-label="Dismiss notification">×</button>
+      </div>
     {/each}
   </aside>
 </div>
