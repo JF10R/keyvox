@@ -143,6 +143,61 @@ def test_main_handles_keyboard_interrupt(monkeypatch):
     main_mod.main()
 
 
+def test_main_server_mode_runs_server_with_port(monkeypatch):
+    cfg = _base_config()
+    calls = {}
+
+    class FakeServer:
+        def __init__(self, config, port):
+            calls["config"] = config
+            calls["port"] = port
+
+        def run(self):
+            calls["run"] = True
+
+    fake_server_mod = types.ModuleType("keyvox.server")
+    fake_server_mod.KeyvoxServer = FakeServer
+
+    monkeypatch.setitem(sys.modules, "keyvox.server", fake_server_mod)
+    monkeypatch.setattr(main_mod, "_check_single_instance", lambda: True)
+    monkeypatch.setattr(main_mod, "load_config", lambda: cfg)
+    monkeypatch.setattr(main_mod, "create_transcriber", lambda config: (_ for _ in ()).throw(AssertionError("should not initialize local pipeline in --server mode")))
+    monkeypatch.setattr(main_mod.sys, "argv", ["keyvox", "--server", "--port", "9999"])
+
+    main_mod.main()
+
+    assert calls["config"] is cfg
+    assert calls["port"] == 9999
+    assert calls["run"] is True
+
+
+def test_main_server_mode_missing_websockets_exits_with_hint(monkeypatch, capsys):
+    cfg = _base_config()
+
+    class FakeServer:
+        def __init__(self, config, port):
+            pass
+
+        def run(self):
+            raise ModuleNotFoundError("No module named 'websockets'", name="websockets")
+
+    fake_server_mod = types.ModuleType("keyvox.server")
+    fake_server_mod.KeyvoxServer = FakeServer
+
+    monkeypatch.setitem(sys.modules, "keyvox.server", fake_server_mod)
+    monkeypatch.setattr(main_mod, "_check_single_instance", lambda: True)
+    monkeypatch.setattr(main_mod, "load_config", lambda: cfg)
+    monkeypatch.setattr(main_mod.sys, "argv", ["keyvox", "--server"])
+
+    with pytest.raises(SystemExit) as exc:
+        main_mod.main()
+
+    captured = capsys.readouterr()
+    assert exc.value.code == 1
+    assert "Missing dependency for --server mode: websockets" in captured.out
+    assert "pip install -e \".[server]\"" in captured.out
+
+
 def test_main_gui_mode_initializes_tray_and_shutdowns(monkeypatch):
     cfg = _base_config()
     calls = {

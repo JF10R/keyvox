@@ -158,6 +158,9 @@ pip install -e ".[gui]"
 
 # Optional: single-instance protection (Windows)
 pip install -e ".[singleton]"
+
+# Optional: WebSocket server mode (frontend/backend decoupling)
+pip install -e ".[server]"
 ```
 
 ### 3. Run setup wizard
@@ -210,6 +213,45 @@ keyvox --headless
 5. **ESC** to quit only when supported and the Keyvox terminal is focused (`ESC` is disabled in Windows Terminal tabs)
 
 **Runtime config hot-reload:** Changes to `[dictionary]` and `[text_insertion]` in `config.toml` are applied automatically on the next hotkey release (no app restart required).
+
+### Server Mode (WebSocket)
+
+```bash
+keyvox --server
+# or custom port
+keyvox --server --port 9999
+```
+
+Server mode exposes the transcription engine over `ws://localhost:<port>` and is intended for external UIs (for example, Tauri/electron/frontend shells).
+
+**Behavior guarantees:**
+- Binds to localhost only
+- Allows a single client connection at a time
+- Tries fallback ports when requested port is busy (`PORT..PORT+9`)
+- Does **not** type/paste into the local active window (engine-only mode)
+
+**Client commands (JSON):**
+
+| Type | Payload | Response |
+|------|---------|----------|
+| `get_config` | `{ "type": "get_config" }` | `config` |
+| `get_dictionary` | `{ "type": "get_dictionary" }` | `dictionary` |
+| `set_dictionary` | `{ "type": "set_dictionary", "key": "...", "value": "..." }` | `dictionary_updated` |
+| `delete_dictionary` | `{ "type": "delete_dictionary", "key": "..." }` | `dictionary_deleted` |
+| `shutdown` | `{ "type": "shutdown" }` | `shutting_down` |
+
+**Server events (JSON):**
+
+| Type | Fields |
+|------|--------|
+| `state` | `state: idle|recording|processing` |
+| `transcription` | `text` |
+| `error` | `message` |
+| `config` | `hotkey`, `backend`, `model` |
+| `dictionary` | `entries` |
+| `dictionary_updated` | `key`, `value` |
+| `dictionary_deleted` | `key` |
+| `shutting_down` | none |
 
 ### Switching Models
 
@@ -449,4 +491,3 @@ schtasks /delete /tn "Keyvox" /f
 ## License
 
 MIT - see [LICENSE](LICENSE).
-

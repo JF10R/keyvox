@@ -61,6 +61,17 @@ def main() -> None:
         action="store_true",
         help="Run without GUI (CLI mode only)"
     )
+    parser.add_argument(
+        "--server",
+        action="store_true",
+        help="Run as WebSocket server (ws://localhost:PORT)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=9876,
+        help="WebSocket server port (default: 9876, used with --server)"
+    )
 
     args = parser.parse_args()
 
@@ -77,6 +88,26 @@ def main() -> None:
 
     # Load configuration
     config = load_config()
+
+    # Server mode: WebSocket engine server
+    if args.server:
+        try:
+            from .server import KeyvoxServer
+
+            server = KeyvoxServer(config=config, port=args.port)
+            server.run()
+        except ModuleNotFoundError as e:
+            if getattr(e, "name", "") == "websockets":
+                print("[ERR] Missing dependency for --server mode: websockets")
+                print("[INFO] Install with: pip install -e \".[server]\"")
+                sys.exit(1)
+            raise
+        except KeyboardInterrupt:
+            print("\n[INFO] Interrupted by user")
+        except Exception as e:
+            print(f"\n[ERR] Fatal error: {e}")
+            sys.exit(1)
+        return
 
     # Initialize components
     print("\n[INFO] Initializing Keyvox...")
@@ -197,4 +228,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

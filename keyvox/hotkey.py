@@ -7,8 +7,7 @@ from pynput import keyboard
 from pynput.keyboard import Key, Controller
 import pyperclip
 import time
-from typing import TYPE_CHECKING, Optional
-from PySide6.QtCore import QObject, Signal, QThreadPool
+from typing import TYPE_CHECKING, Callable, List, Optional
 from .config import get_config_path, load_config
 from .config_reload import FileReloader
 
@@ -17,6 +16,51 @@ if TYPE_CHECKING:
     from .backends import TranscriberBackend
     from .dictionary import DictionaryManager
     from .text_insertion import TextInserter
+
+# --- Qt-optional base class ---
+# When PySide6 is available, HotkeyManager inherits QObject and exposes
+# real Qt Signals.  When it isn't (headless / server mode), we fall back
+# to a lightweight stub so the rest of the code doesn't need to care.
+
+try:
+    from PySide6.QtCore import QObject, Signal as _QtSignal
+
+    _HAS_QT = True
+except ImportError:
+    _HAS_QT = False
+
+
+class _CallbackSignal:
+    """Minimal Signal replacement: register callbacks, emit fires them all."""
+
+    def __init__(self):
+        self._callbacks: List[Callable] = []
+
+    def connect(self, fn: Callable) -> None:
+        self._callbacks.append(fn)
+
+    def disconnect(self, fn: Callable | None = None) -> None:
+        if fn is None:
+            self._callbacks.clear()
+        else:
+            self._callbacks = [cb for cb in self._callbacks if cb is not fn]
+
+    def emit(self, *args) -> None:
+        for cb in self._callbacks:
+            cb(*args)
+
+
+if _HAS_QT:
+    _Base = QObject
+
+    def _make_signal(*types):
+        return _QtSignal(*types) if types else _QtSignal()
+else:
+    _Base = object
+
+    def _make_signal(*_types):
+        return _CallbackSignal()
+
 
 # Lazy import for GUI mode (TranscriptionWorker uses Qt)
 try:
@@ -40,15 +84,15 @@ HOTKEY_MAP = {
 }
 
 
-class HotkeyManager(QObject):
+class HotkeyManager(_Base):
     """Manages keyboard hotkeys and transcription workflow."""
 
-    # Qt signals for UI integration
-    recording_started = Signal()
-    recording_stopped = Signal()
-    transcription_started = Signal()
-    transcription_completed = Signal(str)
-    error_occurred = Signal(str)
+    # Qt signals for UI integration (or lightweight callbacks when Qt absent)
+    recording_started = _make_signal()
+    recording_stopped = _make_signal()
+    transcription_started = _make_signal()
+    transcription_completed = _make_signal(str)
+    error_occurred = _make_signal(str)
 
     def __init__(
         self,
@@ -62,7 +106,8 @@ class HotkeyManager(QObject):
         double_tap_timeout: float = 0.5,
         text_inserter: Optional["TextInserter"] = None
     ):
-        super().__init__()
+        if _HAS_QT:
+            super().__init__()
         self.hotkey = HOTKEY_MAP.get(hotkey_name.lower(), Key.ctrl_r)
         self.recorder = recorder
         self.transcriber = transcriber
@@ -90,6 +135,16 @@ class HotkeyManager(QObject):
         self._config_reloader.prime()
         self._listener: Optional[keyboard.Listener] = None
         self._stop_requested = threading.Event()
+
+        # When Qt is not available, _CallbackSignal instances are per-class
+        # descriptors.  We need per-instance copies so each instance has its
+        # own subscriber list.
+        if not _HAS_QT:
+            self.recording_started = _CallbackSignal()
+            self.recording_stopped = _CallbackSignal()
+            self.transcription_started = _CallbackSignal()
+            self.transcription_completed = _CallbackSignal()
+            self.error_occurred = _CallbackSignal()
 
     def _on_press(self, key):
         """Handle key press events."""
@@ -167,6 +222,7 @@ class HotkeyManager(QObject):
                 QThreadPool.globalInstance().start(worker)
             else:
                 # Headless mode: blocking transcription (original behavior)
+                self.transcription_started.emit()
                 text = self.transcriber.transcribe(audio)
 
                 # Apply dictionary corrections
@@ -181,6 +237,8 @@ class HotkeyManager(QObject):
                 if text:
                     if self.double_tap_enabled:
                         self.last_transcription = text
+
+                    self.transcription_completed.emit(text)
 
                     # Paste or copy transcription
                     if self.auto_paste:
@@ -349,4 +407,3 @@ class HotkeyManager(QObject):
         self.is_processing = False
         self.error_occurred.emit(error_msg)
         print(f"[ERR] Transcription failed: {error_msg}")
-
