@@ -2,8 +2,10 @@
 import pathlib
 import sys
 from pathlib import Path
+import pytest
 
 from keyvox import config as config_module
+from keyvox.config import migrate_config, CURRENT_CONFIG_VERSION
 import keyvox.config
 
 
@@ -152,3 +154,25 @@ def test_config_dirs_linux(monkeypatch):
     dirs = config_module._config_dirs()
     assert _FakePosixPath("/work") in dirs
     assert _FakePosixPath("/tmp/xdg/keyvox") in dirs
+
+
+def test_config_missing_version_migrates_to_v1():
+    """Config without version field is auto-migrated to v1."""
+    cfg = {"model": {"name": "tiny"}}
+    result = migrate_config(cfg, from_version=0)
+    assert result["version"] == CURRENT_CONFIG_VERSION
+
+
+def test_config_future_version_raises(tmp_path):
+    """Config with version > CURRENT raises SystemExit."""
+    conf = tmp_path / "config.toml"
+    conf.write_text("version = 999\n[model]\nname = 'tiny'\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        config_module.load_config(path=conf, quiet=True)
+
+
+def test_migrate_config_idempotent():
+    """Calling migrate_config on a v1 config changes nothing."""
+    cfg = {"version": 1, "keyvox": {}}
+    result = migrate_config(cfg, from_version=1)
+    assert result["version"] == 1
