@@ -1,8 +1,10 @@
 """Tests for configuration loading and serialization."""
 import pathlib
+import sys
 from pathlib import Path
 
 from keyvox import config as config_module
+import keyvox.config
 
 
 class _FakePosixPath(pathlib.PurePosixPath):
@@ -117,6 +119,29 @@ def test_config_dirs_macos(monkeypatch):
     dirs = config_module._config_dirs()
     assert _FakePosixPath("/work") in dirs
     assert _FakePosixPath("/home/tester/Library/Application Support/keyvox") in dirs
+
+
+def test_get_platform_config_dir_windows_with_appdata(monkeypatch):
+    monkeypatch.setattr(keyvox.config.os, "name", "nt")
+    monkeypatch.setenv("APPDATA", "C:/Users/Test/AppData/Roaming")
+    result = keyvox.config.get_platform_config_dir()
+    assert result == Path("C:/Users/Test/AppData/Roaming") / "keyvox"
+
+
+def test_get_platform_config_dir_windows_missing_appdata_falls_to_xdg(monkeypatch):
+    monkeypatch.setattr(keyvox.config.os, "name", "nt")
+    monkeypatch.delenv("APPDATA", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/xdg")
+    result = keyvox.config.get_platform_config_dir()
+    assert str(result).endswith("keyvox")
+
+
+def test_get_platform_config_dir_macos(monkeypatch):
+    monkeypatch.setattr(keyvox.config.os, "name", "posix")
+    monkeypatch.setattr(keyvox.config.sys, "platform", "darwin")
+    monkeypatch.setattr(config_module, "Path", _FakePosixPath)
+    result = keyvox.config.get_platform_config_dir()
+    assert "Library/Application Support/keyvox" in str(result)
 
 
 def test_config_dirs_linux(monkeypatch):

@@ -263,3 +263,105 @@ def test_run_wizard_installs_torch_when_missing(monkeypatch, tmp_path):
 
     assert pip_calls["packages"] == ["torch"]
     assert pip_calls["index_url"] == "https://download.pytorch.org/whl/cu124"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_hf_hub_cache branches
+# ---------------------------------------------------------------------------
+
+def test_resolve_hf_hub_cache_prefers_hf_hub_cache_env(monkeypatch):
+    monkeypatch.setenv("HF_HUB_CACHE", "D:/hf/hub")
+    monkeypatch.delenv("HF_HOME", raising=False)
+    assert wizard._resolve_hf_hub_cache("") == Path("D:/hf/hub")
+
+
+def test_resolve_hf_hub_cache_falls_back_to_hf_home(monkeypatch):
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.setenv("HF_HOME", "D:/hf")
+    assert wizard._resolve_hf_hub_cache("") == Path("D:/hf") / "hub"
+
+
+def test_resolve_hf_hub_cache_uses_model_cache_argument(monkeypatch):
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.delenv("HF_HOME", raising=False)
+    assert wizard._resolve_hf_hub_cache("D:/models") == Path("D:/models") / "hub"
+
+
+def test_resolve_hf_hub_cache_falls_back_to_default(monkeypatch):
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.delenv("HF_HOME", raising=False)
+    result = wizard._resolve_hf_hub_cache("")
+    assert result == Path.home() / ".cache" / "huggingface" / "hub"
+
+
+# ---------------------------------------------------------------------------
+# _pip_install
+# ---------------------------------------------------------------------------
+
+def test_pip_install_builds_correct_command(monkeypatch):
+    import sys as _sys
+    import subprocess as _subprocess
+    calls = {}
+
+    def fake_run(cmd, **kwargs):
+        calls["cmd"] = cmd
+        import types as _types
+        return _types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(wizard.subprocess, "run", fake_run)
+
+    url = "https://download.pytorch.org/whl/cu124"
+    result = wizard._pip_install(["torch"], index_url=url)
+
+    assert result is True
+    assert "torch" in calls["cmd"]
+    assert "--index-url" in calls["cmd"]
+    assert url in calls["cmd"]
+
+
+def test_pip_install_returns_false_on_nonzero_exit(monkeypatch):
+    import types as _types
+
+    monkeypatch.setattr(
+        wizard.subprocess,
+        "run",
+        lambda *args, **kwargs: _types.SimpleNamespace(returncode=1),
+    )
+
+    assert wizard._pip_install(["torch"]) is False
+
+
+# ---------------------------------------------------------------------------
+# _check_model_cached
+# ---------------------------------------------------------------------------
+
+def test_check_model_cached_returns_false_when_faster_whisper_missing(monkeypatch):
+    import builtins as _builtins
+    orig_import = _builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "faster_whisper.utils":
+            raise ImportError("no faster_whisper")
+        return orig_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(_builtins, "__import__", fake_import)
+    assert wizard._check_model_cached("tiny", "") is False
+
+
+def test_check_model_cached_finds_model_in_snapshots(tmp_path, monkeypatch):
+    import sys as _sys
+    import types as _types
+
+    # Create cache structure: hub/models--Systran--faster-whisper-tiny/snapshots/abc123/model.bin
+    snapshot_dir = tmp_path / "models--Systran--faster-whisper-tiny" / "snapshots" / "abc123"
+    snapshot_dir.mkdir(parents=True)
+    (snapshot_dir / "model.bin").write_bytes(b"model")
+
+    # Inject fake faster_whisper.utils with _MODELS
+    fake_utils = _types.SimpleNamespace(_MODELS={"tiny": "Systran/faster-whisper-tiny"})
+    monkeypatch.setitem(_sys.modules, "faster_whisper.utils", fake_utils)
+
+    # _resolve_hf_hub_cache → tmp_path
+    monkeypatch.setattr(wizard, "_resolve_hf_hub_cache", lambda cache: tmp_path)
+
+    assert wizard._check_model_cached("tiny", "") is True

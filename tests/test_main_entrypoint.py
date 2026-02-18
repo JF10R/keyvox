@@ -277,6 +277,76 @@ def test_main_headless_handles_fatal_exception(monkeypatch):
     assert exc.value.code == 1
 
 
+# ---------------------------------------------------------------------------
+# _run_headless_mode exception paths (called directly, bypassing main())
+# ---------------------------------------------------------------------------
+
+def _make_headless_mocks(monkeypatch, *, hotkey_side_effect=None, transcriber_side_effect=None):
+    """Patch all dependencies for _run_headless_mode."""
+    cfg = _base_config()
+
+    class FakeDictionary:
+        corrections = {}
+
+        @staticmethod
+        def load_from_config(config):
+            return FakeDictionary()
+
+    class FakePipeline:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+    class FakeHotkeyManager:
+        def __init__(self, **kwargs):
+            pass
+
+        def run(self):
+            if hotkey_side_effect is not None:
+                raise hotkey_side_effect
+
+    if transcriber_side_effect is not None:
+        monkeypatch.setattr(
+            main_mod,
+            "create_transcriber",
+            lambda config: (_ for _ in ()).throw(transcriber_side_effect),
+        )
+    else:
+        monkeypatch.setattr(main_mod, "create_transcriber", lambda config: "TRANSCRIBER")
+
+    monkeypatch.setattr(main_mod, "AudioRecorder", lambda sample_rate, input_device: object())
+    monkeypatch.setattr(main_mod, "DictionaryManager", FakeDictionary)
+    monkeypatch.setattr(main_mod, "TextInserter", lambda config, dictionary_corrections: object())
+    monkeypatch.setattr(main_mod, "TranscriptionPipeline", FakePipeline)
+    monkeypatch.setattr(main_mod, "HotkeyManager", FakeHotkeyManager)
+    return cfg
+
+
+def test_run_headless_mode_handles_keyboard_interrupt(monkeypatch):
+    cfg = _make_headless_mocks(monkeypatch, hotkey_side_effect=KeyboardInterrupt())
+    # Should return without raising
+    main_mod._run_headless_mode(config=cfg)
+
+
+def test_run_headless_mode_handles_fatal_exception_exits_1(monkeypatch):
+    cfg = _make_headless_mocks(monkeypatch, transcriber_side_effect=Exception("fatal"))
+    with pytest.raises(SystemExit) as exc:
+        main_mod._run_headless_mode(config=cfg)
+    assert exc.value.code == 1
+
+
+def test_run_headless_mode_handles_fatal_exception_in_hotkey(monkeypatch):
+    cfg = _make_headless_mocks(monkeypatch, hotkey_side_effect=Exception("hotkey crash"))
+    with pytest.raises(SystemExit) as exc:
+        main_mod._run_headless_mode(config=cfg)
+    assert exc.value.code == 1
+
+
 def test_module_main_guard_executes_main(monkeypatch):
     from keyvox import setup_wizard as setup_mod
 
