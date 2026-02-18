@@ -105,6 +105,27 @@ def test_save_config_writes_sections_and_types(tmp_path):
     assert "double_tap_timeout = 0.5" in raw
 
 
+def test_save_config_writes_top_level_scalars_before_sections(tmp_path):
+    """version = 1 (top-level int) must appear before section headers in TOML."""
+    path = tmp_path / "config.toml"
+    content = {
+        "version": 1,
+        "model": {"name": "tiny", "device": "cpu", "compute_type": "int8", "backend": "auto"},
+    }
+    config_module.save_config(path, content)
+
+    raw = path.read_text(encoding="utf-8")
+    assert "version = 1" in raw
+    assert "[model]" in raw
+    # version line must appear before the first section header
+    assert raw.index("version = 1") < raw.index("[model]")
+    # round-trip: the file must be valid TOML
+    import tomllib
+    parsed = tomllib.loads(raw)
+    assert parsed["version"] == 1
+    assert parsed["model"]["name"] == "tiny"
+
+
 def test_config_dirs_windows(monkeypatch):
     monkeypatch.setattr(config_module.os, "name", "nt", raising=False)
     monkeypatch.setattr(config_module.sys, "platform", "win32", raising=False)
