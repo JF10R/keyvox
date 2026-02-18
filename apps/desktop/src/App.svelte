@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
 
   import {
     backendPreflight,
@@ -95,6 +96,7 @@
   let validationErrors: Record<string, string> = {};
 
   let needsFirstRun = false;
+  let unlistenClose: (() => void) | null = null;
 
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempts = 0;
@@ -848,6 +850,13 @@
     isDarkTheme = savedTheme ? savedTheme === "dark" : prefersDark;
     document.documentElement.setAttribute("data-theme", isDarkTheme ? "dark" : "light");
 
+    // Close-to-tray: intercept window close and hide instead of quitting
+    const appWindow = getCurrentWindow();
+    unlistenClose = await appWindow.onCloseRequested((event) => {
+      event.preventDefault();
+      void appWindow.hide();
+    });
+
     // First-run detection: if preflight fails because keyvox isn't installed, show setup.
     const preflight = await backendPreflight(preferredPort, backendCommand.trim() || undefined);
     if (!preflight.ok && preflight.issueCode === "backend_command_not_found") {
@@ -862,6 +871,9 @@
     resetReconnectState();
     void stopManagedBackendOnExit();
     client.disconnect();
+    if (unlistenClose) {
+      unlistenClose();
+    }
   });
 </script>
 
