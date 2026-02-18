@@ -9,6 +9,7 @@
     startBackend,
     stopBackend,
   } from "./lib/backend";
+  import FirstRunSetup from "./lib/FirstRunSetup.svelte";
   import type {
     CapabilitiesResult,
     HistoryEntry,
@@ -92,6 +93,8 @@
   let dictEditingKey: string | null = null;
   let dictEditingValue = "";
   let validationErrors: Record<string, string> = {};
+
+  let needsFirstRun = false;
 
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempts = 0;
@@ -808,13 +811,7 @@
     }
   }
 
-  onMount(async () => {
-    // Theme init — saved preference first, then OS preference
-    const savedTheme = localStorage.getItem("keyvox-theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    isDarkTheme = savedTheme ? savedTheme === "dark" : prefersDark;
-    document.documentElement.setAttribute("data-theme", isDarkTheme ? "dark" : "light");
-
+  async function startNormalFlow(): Promise<void> {
     booting = true;
     resetReconnectState();
     try {
@@ -837,6 +834,28 @@
     } finally {
       booting = false;
     }
+  }
+
+  async function handleFirstRunComplete(): Promise<void> {
+    needsFirstRun = false;
+    await startNormalFlow();
+  }
+
+  onMount(async () => {
+    // Theme init — saved preference first, then OS preference
+    const savedTheme = localStorage.getItem("keyvox-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    isDarkTheme = savedTheme ? savedTheme === "dark" : prefersDark;
+    document.documentElement.setAttribute("data-theme", isDarkTheme ? "dark" : "light");
+
+    // First-run detection: if preflight fails because keyvox isn't installed, show setup.
+    const preflight = await backendPreflight(preferredPort, backendCommand.trim() || undefined);
+    if (!preflight.ok && preflight.issueCode === "backend_command_not_found") {
+      needsFirstRun = true;
+      return;
+    }
+
+    await startNormalFlow();
   });
 
   onDestroy(() => {
@@ -845,6 +864,10 @@
     client.disconnect();
   });
 </script>
+
+{#if needsFirstRun}
+  <FirstRunSetup onComplete={handleFirstRunComplete} />
+{:else}
 
 <a href="#main-content" class="skip-link">Skip to content</a>
 <div class="app-shell">
@@ -1296,3 +1319,5 @@
     {/each}
   </aside>
 </div>
+
+{/if}

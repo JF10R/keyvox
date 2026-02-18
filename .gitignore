@@ -38,3 +38,5 @@ htmlcov/
 apps/desktop/node_modules/
 apps/desktop/dist/
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/resources/*.whl
+apps/desktop/src-tauri/resources/uv.exe
