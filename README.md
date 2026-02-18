@@ -433,7 +433,7 @@ Result: "Hello, world"  (no space before comma)
 ## Testing
 
 - Full testing guide: [`docs/testing.md`](docs/testing.md)
-- Current suite: **194 tests**
+- Current suite: **268 tests**
 - Coverage command included below for local validation.
 
 Run locally:
@@ -465,9 +465,15 @@ schtasks /delete /tn "Keyvox" /f
 
 **Multi-backend:** faster-whisper (NVIDIA), Qwen3 ASR (AMD/Intel/NVIDIA/CPU), GPU vendor auto-detection, VRAM-based model recommendation, capabilities-driven model/backend/device/compute selectors.
 
-**Setup wizard:** GPU detection via `nvidia-smi`, guided PyTorch CUDA wheel install, guided faster-whisper install, microphone listing, config generation.
+**Setup wizard:** GPU detection via `nvidia-smi`, guided PyTorch CUDA wheel install, guided faster-whisper install, microphone listing, config generation. First-run UI in the desktop app with GPU/CPU stack detection and guided venv install via bundled `uv.exe`.
 
 **Server mode:** WebSocket engine backend (`keyvox --server`) with request/response correlation, async state events, and full protocol for external UIs.
+
+**Tray integration:** Right-click context menu (Show/Hide, Quit), single-click window toggle, close-to-tray behaviour (window hides, backend keeps running).
+
+**CI/CD:** GitHub Actions — pytest on Python 3.11 + 3.12 (Windows), ruff lint, mypy typecheck. Release workflow builds NSIS installer and uploads to GitHub Releases on version tags.
+
+**Quality baseline:** Config schema versioning (`version = 1`) with auto-migration for old configs. Actionable error messages for missing backend packages (`pip install keyvox[nvidia]`), CUDA OOM (smaller-model suggestion), mic failures (device list), and corrupt model cache (delete-and-redownload hint).
 
 ---
 
@@ -484,26 +490,26 @@ schtasks /delete /tn "Keyvox" /f
 ### P2 — Tray & System Integration
 *The tray icon exists (tooltip-only). These make Keyvox behave like a native Windows background utility instead of an app you leave open in a terminal.*
 
-- [ ] Tray context menu: right-click → Show/Hide window, Quit (Rust/Tauri `Menu` + `on_menu_event`)
-- [ ] Tray icon click: single-click toggles window visibility
+- [x] Tray context menu: right-click → Show/Hide window, Quit (Rust/Tauri `Menu` + `on_menu_event`)
+- [x] Tray icon click: single-click toggles window visibility
 - [ ] Engine state in tray: swap tray icon file (or tooltip text) to reflect idle / recording / processing
-- [ ] Minimize to tray on window close: intercept the `CloseRequested` event; hide the window, keep backend running
+- [x] Minimize to tray on window close: intercept the `CloseRequested` event; hide the window, keep backend running
 - [ ] Open at login (Windows): write/delete `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registry key
 - [ ] Open at login toggle: checkbox in the desktop UI Settings panel, writes/deletes the registry key via a Tauri command
 
 ### P3 — Quality Baseline
 *Professional-grade reliability. CI catches regressions before they ship; error messages give users a path forward instead of a traceback.*
 
-- [ ] GitHub Actions: pytest on push (Windows runner, Python 3.11 + 3.12, runs on every PR)
-- [ ] GitHub Actions: ruff linting (replaces flake8 + isort + pyupgrade, single fast pass)
-- [ ] GitHub Actions: mypy type checking in strict mode on `keyvox/`
+- [x] GitHub Actions: pytest on push (Windows runner, Python 3.11 + 3.12, runs on every PR)
+- [x] GitHub Actions: ruff linting (replaces flake8 + isort + pyupgrade, single fast pass)
+- [x] GitHub Actions: mypy type checking on `keyvox/` (`--ignore-missing-imports`)
 - [ ] Dependency lock file: add `uv.lock` for reproducible installs across environments
-- [ ] Config schema version field: add `version = 1` to TOML; reject unknown versions with a clear, actionable message
-- [ ] Config migration function: `migrate_config(old_dict) → new_dict`; auto-upgrades on load so old configs never silently break
-- [ ] Actionable backend error: catch `ImportError` at backend load, print which package is missing and the exact install command
-- [ ] Actionable CUDA OOM error: detect `RuntimeError: CUDA out of memory`, suggest a smaller model by name
-- [ ] Actionable mic error: catch `sounddevice.PortAudioError`, list available devices and point to `--setup`
-- [ ] Actionable model-load error: catch corrupt/missing model files, tell user to delete the cache entry and re-download
+- [x] Config schema version field: add `version = 1` to TOML; reject unknown versions with a clear, actionable message
+- [x] Config migration function: `migrate_config(old_dict, from_version) → dict`; auto-upgrades on load so old configs never silently break
+- [x] Actionable backend error: catch `ImportError` at backend load, print which package is missing and the exact install command
+- [x] Actionable CUDA OOM error: detect `RuntimeError: CUDA out of memory`, suggest a smaller model by name
+- [x] Actionable mic error: catch `sounddevice.PortAudioError`, list available devices and point to `--setup`
+- [x] Actionable model-load error: catch corrupt/missing model files, tell user to delete the cache entry and re-download
 
 ### P4 — Power User Polish
 *Gaps that power users hit quickly. Each is a small, self-contained change.*
