@@ -114,6 +114,19 @@ class TranscriptionPipeline:
                         self.transcription_completed(text)
                     self._output_fn(text)
 
+            except RuntimeError as exc:
+                message = str(exc)
+                if "out of memory" in message.lower():
+                    print("[ERR] CUDA out of memory during transcription.")
+                    print("      Try a smaller model (e.g. medium or small instead of large-v3-turbo).")
+                    print("      Change model in config or via keyvox --setup")
+                    if self.error_occurred:
+                        self.error_occurred(message)
+                    continue
+                # Non-OOM RuntimeError: fall through to general handling
+                if self.error_occurred:
+                    self.error_occurred(message)
+                print(f"[ERR] Transcription failed: {message}")
             except Exception as exc:
                 message = str(exc)
                 if self.error_occurred:

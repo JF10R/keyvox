@@ -213,6 +213,61 @@ def test_stop_joins_worker_thread():
     assert pipeline._thread is None
 
 
+def test_cuda_oom_prints_hint_and_continues(capsys):
+    """CUDA OOM error prints a helpful hint and the pipeline continues processing."""
+    call_count = [0]
+    results = []
+
+    class _OOMThenSuccess:
+        def transcribe(self, audio):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError("CUDA out of memory. Tried to allocate 2GB")
+            return "recovered"
+
+    pipeline, outputs = _make_pipeline(transcriber=_OOMThenSuccess())
+
+    pipeline.start()
+    try:
+        pipeline.enqueue(np.array([0.1], dtype=np.float32))  # OOM
+        pipeline.enqueue(np.array([0.2], dtype=np.float32))  # Success
+
+        deadline = time.monotonic() + 2.0
+        while len(outputs) < 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+    finally:
+        pipeline.stop()
+
+    out = capsys.readouterr().out
+    assert "[ERR]" in out
+    assert "out of memory" in out.lower()
+    assert "smaller model" in out.lower()
+    assert outputs == ["recovered"]  # pipeline continued after OOM
+
+
+def test_non_oom_runtime_error_calls_error_occurred():
+    """Non-OOM RuntimeError is handled the same as general Exception."""
+    errors = []
+
+    class _BoomTranscriber:
+        def transcribe(self, audio):
+            raise RuntimeError("gpu driver crash")
+
+    pipeline, _ = _make_pipeline(transcriber=_BoomTranscriber())
+    pipeline.error_occurred = lambda msg: errors.append(msg)
+
+    pipeline.start()
+    try:
+        pipeline.enqueue(np.array([0.1], dtype=np.float32))
+        deadline = time.monotonic() + 2.0
+        while not errors and time.monotonic() < deadline:
+            time.sleep(0.01)
+    finally:
+        pipeline.stop()
+
+    assert errors == ["gpu driver crash"]
+
+
 def test_multiple_items_processed_in_order():
     results = []
     transcriber = _Transcriber("")

@@ -29,14 +29,22 @@ class AudioRecorder:
         self.audio_queue = queue.Queue()
         print("[REC] Recording...")
 
-        self.stream = sd.InputStream(
-            samplerate=self.sample_rate,
-            channels=1,
-            dtype='float32',
-            callback=self._audio_callback,
-            device=self.input_device
-        )
-        self.stream.start()
+        try:
+            self.stream = sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype='float32',
+                callback=self._audio_callback,
+                device=self.input_device
+            )
+            self.stream.start()
+        except sd.PortAudioError as e:
+            self.is_recording = False
+            self.audio_queue = None
+            print(f"[ERR] Microphone error: {e}")
+            print(f"      Available audio devices:\n{sd.query_devices()}")
+            print("      Run 'keyvox --setup' to select a different device.")
+            raise
 
     def stop(self) -> Optional[np.ndarray]:
         """Stop recording and return audio data."""

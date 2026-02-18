@@ -26,9 +26,18 @@ class FasterWhisperBackend:
 
         from faster_whisper import WhisperModel
 
+        self.model_name = model_name
         print(f"[INFO] Loading Faster Whisper model: {model_name} on {device}...")
-        self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
-        print("[OK] Model loaded and ready")
+        try:
+            self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
+            print("[OK] Model loaded and ready")
+        except Exception as e:
+            msg = str(e).lower()
+            if any(kw in msg for kw in ("corrupt", "model", "load", "download")):
+                print(f"[ERR] Failed to load model '{model_name}': {e}")
+                print("      The model cache may be corrupt. Delete and re-download:")
+                print("      Delete the model from your cache directory, then restart keyvox.")
+            raise
 
     def transcribe(self, audio_array: Optional[np.ndarray]) -> str:
         """Transcribe audio to text."""

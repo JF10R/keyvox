@@ -206,6 +206,55 @@ def test_qwen_vllm_transcribe_handles_errors(monkeypatch):
     assert backend.transcribe(np.array([0.1], dtype=np.float32)) == ""
 
 
+def test_faster_whisper_model_load_failure_prints_hint(monkeypatch, capsys):
+    class BrokenModel:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("corrupt model file cannot be loaded")
+
+    monkeypatch.setitem(__import__("sys").modules, "faster_whisper", types.SimpleNamespace(WhisperModel=BrokenModel))
+
+    with pytest.raises(RuntimeError, match="corrupt"):
+        FasterWhisperBackend(model_name="large-v3-turbo")
+
+    out = capsys.readouterr().out
+    assert "[ERR]" in out
+    assert "large-v3-turbo" in out
+    assert "cache" in out.lower()
+
+
+def test_faster_whisper_model_load_unrelated_error_no_hint(monkeypatch, capsys):
+    class BrokenModel:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("network timeout")
+
+    monkeypatch.setitem(__import__("sys").modules, "faster_whisper", types.SimpleNamespace(WhisperModel=BrokenModel))
+
+    with pytest.raises(RuntimeError):
+        FasterWhisperBackend(model_name="tiny")
+
+    out = capsys.readouterr().out
+    assert "[ERR] Failed to load" not in out
+
+
+def test_qwen_model_load_failure_prints_hint(monkeypatch, capsys):
+    fake_torch = types.SimpleNamespace(float16="F16", bfloat16="BF16", float32="F32")
+
+    class BrokenQwenModel:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            raise RuntimeError("model download failed")
+
+    monkeypatch.setitem(__import__("sys").modules, "torch", fake_torch)
+    monkeypatch.setitem(__import__("sys").modules, "qwen_asr", types.SimpleNamespace(Qwen3ASRModel=BrokenQwenModel))
+
+    with pytest.raises(RuntimeError, match="download"):
+        QwenASRBackend(model_name="Qwen/Qwen3-ASR-1.7B")
+
+    out = capsys.readouterr().out
+    assert "[ERR]" in out
+    assert "cache" in out.lower()
+
+
 def test_qwen_vllm_backend_sets_model_cache_and_handles_no_speech(monkeypatch):
     import keyvox.backends.qwen_asr_vllm as mod
 

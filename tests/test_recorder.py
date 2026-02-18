@@ -1,5 +1,6 @@
 """Tests for audio recorder behavior with mocked sounddevice streams."""
 import numpy as np
+import pytest
 
 from keyvox.recorder import AudioRecorder
 from keyvox import recorder as recorder_module
@@ -76,6 +77,30 @@ def test_stop_handles_empty_audio_queue(monkeypatch):
     assert rec.stream is None
     assert _FakeInputStream.created[0].stopped is True
     assert _FakeInputStream.created[0].closed is True
+
+
+def test_start_portaudio_error_prints_devices_and_reraises(monkeypatch, capsys):
+    class _ErrorInputStream:
+        def __init__(self, **kwargs):
+            pass
+
+        def start(self):
+            raise recorder_module.sd.PortAudioError("no device found")
+
+    monkeypatch.setattr(recorder_module.sd, "InputStream", _ErrorInputStream)
+    monkeypatch.setattr(recorder_module.sd, "query_devices", lambda: "device list")
+
+    rec = AudioRecorder()
+    with pytest.raises(recorder_module.sd.PortAudioError):
+        rec.start()
+
+    out = capsys.readouterr().out
+    assert "[ERR]" in out
+    assert "device list" in out
+    assert "keyvox --setup" in out
+    # State should be reset so start() can be retried
+    assert rec.is_recording is False
+    assert rec.audio_queue is None
 
 
 def test_stop_concatenates_audio_and_squeezes(monkeypatch):
