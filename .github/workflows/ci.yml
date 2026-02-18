@@ -8,18 +8,44 @@ on:
 jobs:
   test:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install deps
+        run: pip install -e ".[singleton,server]" pytest pytest-cov
+      - name: Test
+        run: python -m pytest -q
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Install deps
-        run: pip install -e ".[singleton,server]" pytest ruff
-
+          cache: pip
+      - run: pip install ruff
       - name: Lint
         run: ruff check keyvox/ tests/
+      - name: Format check
+        run: ruff format --check keyvox/ tests/
 
-      - name: Test
-        run: python -m pytest -q
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install deps
+        run: pip install -e ".[singleton,server]" mypy types-toml
+      - name: Type check
+        run: mypy keyvox/ --ignore-missing-imports --no-strict-optional
+        continue-on-error: true
