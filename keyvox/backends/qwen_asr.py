@@ -35,15 +35,24 @@ class QwenASRBackend:
         }
         dtype = dtype_map.get(compute_type, torch.bfloat16)
 
+        self.model_name = model_name
         print(f"[INFO] Loading Qwen3 ASR model: {model_name} on {device}...")
-        self.model = Qwen3ASRModel.from_pretrained(
-            model_name,
-            dtype=dtype,
-            device_map=device if device != "cpu" else None,
-            max_inference_batch_size=32,
-            max_new_tokens=256,
-        )
-        print("[OK] Model loaded and ready")
+        try:
+            self.model = Qwen3ASRModel.from_pretrained(
+                model_name,
+                dtype=dtype,
+                device_map=device if device != "cpu" else None,
+                max_inference_batch_size=32,
+                max_new_tokens=256,
+            )
+            print("[OK] Model loaded and ready")
+        except Exception as e:
+            msg = str(e).lower()
+            if any(kw in msg for kw in ("corrupt", "model", "load", "download")):
+                print(f"[ERR] Failed to load model '{model_name}': {e}")
+                print("      The model cache may be corrupt. Delete and re-download:")
+                print("      Delete the model from your cache directory, then restart keyvox.")
+            raise
 
     def transcribe(self, audio_array: Optional[np.ndarray]) -> str:
         """Transcribe audio to text."""

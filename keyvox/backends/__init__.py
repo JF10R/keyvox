@@ -55,6 +55,8 @@ def create_transcriber(config: Dict[str, Any]) -> TranscriberBackend:
                 model_cache=model_cache
             )
         except ImportError as e:
+            print("[ERR] Backend 'faster-whisper' requires the 'faster-whisper' package.")
+            print("      Install it with: pip install keyvox[nvidia]")
             raise ValueError(
                 f"faster-whisper backend requires faster-whisper package. "
                 f"Install with: pip install faster-whisper\n"
@@ -71,6 +73,8 @@ def create_transcriber(config: Dict[str, Any]) -> TranscriberBackend:
                 model_cache=model_cache
             )
         except ImportError as e:
+            print("[ERR] Backend 'qwen-asr' requires the 'qwen-asr' package.")
+            print("      Install it with: pip install keyvox[qwen]")
             raise ValueError(
                 f"qwen-asr backend requires qwen-asr package. "
                 f"Install with: pip install qwen-asr\n"
@@ -87,6 +91,9 @@ def create_transcriber(config: Dict[str, Any]) -> TranscriberBackend:
                 model_cache=model_cache
             )
         except ImportError as e:
+            print("[ERR] Backend 'qwen-asr-vllm' requires qwen-asr with vLLM (Linux only).")
+            print("      Install it with: pip install qwen-asr[vllm]")
+            print("      Note: vLLM is not supported on Windows. Use 'qwen-asr' instead.")
             raise ValueError(
                 f"qwen-asr-vllm backend requires qwen-asr with vLLM (Linux only). "
                 f"Install with: pip install qwen-asr[vllm]\n"

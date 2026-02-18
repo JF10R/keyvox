@@ -109,3 +109,39 @@ def test_create_transcriber_vllm_import_error_wrapped(monkeypatch):
 def test_create_transcriber_unknown_backend_raises():
     with pytest.raises(ValueError, match="Unknown backend"):
         backends.create_transcriber(_base_config("bogus"))
+
+
+def test_create_transcriber_import_error_prints_hint_faster_whisper(monkeypatch, capsys):
+    monkeypatch.delitem(sys.modules, "keyvox.backends.faster_whisper", raising=False)
+    monkeypatch.setitem(sys.modules, "keyvox.backends.faster_whisper", None)
+
+    with pytest.raises(ValueError):
+        backends.create_transcriber(_base_config("faster-whisper"))
+
+    out = capsys.readouterr().out
+    assert "[ERR]" in out
+    assert "pip install keyvox[nvidia]" in out
+
+
+def test_create_transcriber_import_error_prints_hint_qwen(monkeypatch, capsys):
+    monkeypatch.delitem(sys.modules, "keyvox.backends.qwen_asr", raising=False)
+    monkeypatch.setitem(sys.modules, "keyvox.backends.qwen_asr", None)
+
+    with pytest.raises(ValueError):
+        backends.create_transcriber(_base_config("qwen-asr"))
+
+    out = capsys.readouterr().out
+    assert "[ERR]" in out
+    assert "pip install keyvox[qwen]" in out
+
+
+def test_create_transcriber_import_error_prints_hint_vllm(monkeypatch, capsys):
+    monkeypatch.delitem(sys.modules, "keyvox.backends.qwen_asr_vllm", raising=False)
+    monkeypatch.setitem(sys.modules, "keyvox.backends.qwen_asr_vllm", None)
+
+    with pytest.raises(ValueError):
+        backends.create_transcriber(_base_config("qwen-asr-vllm"))
+
+    out = capsys.readouterr().out
+    assert "[ERR]" in out
+    assert "qwen-asr[vllm]" in out

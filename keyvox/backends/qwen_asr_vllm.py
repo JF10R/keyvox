@@ -35,16 +35,25 @@ class QwenASRVLLMBackend:
 
         from qwen_asr import Qwen3ASRModel
 
+        self.model_name = model_name
         print(f"[INFO] Loading Qwen3 ASR model (vLLM): {model_name} on {device}...")
 
         # vLLM uses .LLM() instead of .from_pretrained()
-        self.model = Qwen3ASRModel.LLM(
-            model=model_name,
-            gpu_memory_utilization=0.7,  # Leave 30% for overhead
-            max_inference_batch_size=32,
-            max_new_tokens=256,
-        )
-        print("[OK] Model loaded and ready (vLLM accelerated)")
+        try:
+            self.model = Qwen3ASRModel.LLM(
+                model=model_name,
+                gpu_memory_utilization=0.7,  # Leave 30% for overhead
+                max_inference_batch_size=32,
+                max_new_tokens=256,
+            )
+            print("[OK] Model loaded and ready (vLLM accelerated)")
+        except Exception as e:
+            msg = str(e).lower()
+            if any(kw in msg for kw in ("corrupt", "model", "load", "download")):
+                print(f"[ERR] Failed to load model '{model_name}': {e}")
+                print("      The model cache may be corrupt. Delete and re-download:")
+                print("      Delete the model from your cache directory, then restart keyvox.")
+            raise
 
     def transcribe(self, audio_array: Optional[np.ndarray]) -> str:
         """Transcribe audio to text."""
