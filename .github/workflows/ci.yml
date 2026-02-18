@@ -1,0 +1,25 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -e ".[singleton,server]" pytest ruff
+
+      - name: Lint
+        run: ruff check keyvox/ tests/
+
+      - name: Test
+        run: python -m pytest -q

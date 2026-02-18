@@ -833,3 +833,250 @@ def test_start_ws_falls_back_to_next_port(monkeypatch):
     assert bound_port == 7001
     assert calls == [("localhost", 7000), ("localhost", 7001)]
     assert server._server is not None
+
+
+# ---------------------------------------------------------------------------
+# Input validation error paths
+# ---------------------------------------------------------------------------
+
+def test_get_history_rejects_negative_limit(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "get_history", "request_id": "h-lim", "limit": -1, "offset": 0},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="h-lim")
+
+
+def test_get_history_rejects_negative_offset(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "get_history", "request_id": "h-off", "limit": 10, "offset": -1},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="h-off")
+
+
+def test_get_history_rejects_non_string_search(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "get_history", "request_id": "h-srch", "limit": 10, "offset": 0, "search": 42},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="h-srch")
+
+
+def test_delete_history_item_rejects_zero_id(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "delete_history_item", "request_id": "d-zero", "id": 0},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="d-zero")
+
+
+def test_delete_history_item_returns_not_found(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "delete_history_item", "request_id": "d-nf", "id": 9999},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "not_found", request_id="d-nf")
+
+
+def test_export_history_rejects_invalid_format(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    monkeypatch.setattr(server_mod, "get_config_path", lambda: None)
+    asyncio.run(
+        server._handle_command(
+            {"type": "export_history", "request_id": "exp-fmt", "format": "xml"},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="exp-fmt")
+
+
+def test_set_dictionary_rejects_empty_value(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "set_dictionary", "request_id": "dict-empty", "key": "foo", "value": ""},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="dict-empty")
+
+
+def test_delete_dictionary_returns_not_found_for_missing_key(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "delete_dictionary", "request_id": "dict-nf", "key": "doesnotexist"},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "not_found", request_id="dict-nf")
+
+
+def test_set_config_section_rejects_unknown_section(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {
+                "type": "set_config_section",
+                "request_id": "sec-bad",
+                "section": "nonexistent_section",
+                "values": {"foo": "bar"},
+            },
+            ws,
+        )
+    )
+    payload = ws.sent[-1]
+    assert payload["ok"] is False
+    assert payload["error"]["code"] in {"invalid_section", "invalid_payload"}
+
+
+def test_set_model_rejects_when_no_fields_provided(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "set_model", "request_id": "mod-empty"},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="mod-empty")
+
+
+def test_set_audio_device_rejects_non_positive_sample_rate(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "set_audio_device", "request_id": "aud-rate", "sample_rate": -1},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="aud-rate")
+
+
+def test_set_audio_device_rejects_no_fields(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "set_audio_device", "request_id": "aud-none"},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="aud-none")
+
+
+def test_set_storage_root_rejects_empty_string(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    asyncio.run(
+        server._handle_command(
+            {"type": "set_storage_root", "request_id": "stor-empty", "storage_root": "   "},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id="stor-empty")
+
+
+def test_coerce_request_id_rejects_list(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    ws = _FakeWebSocket()
+    # A list request_id raises ValueError in _coerce_request_id → invalid_payload
+    asyncio.run(
+        server._handle_command(
+            {"type": "ping", "request_id": [1, 2]},
+            ws,
+        )
+    )
+    _assert_error_response(ws.sent[-1], "invalid_payload", request_id=None)
+
+
+# ---------------------------------------------------------------------------
+# Migration worker
+# ---------------------------------------------------------------------------
+
+def test_run_storage_migration_worker_success_emits_events(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    events = []
+    monkeypatch.setattr(server, "_broadcast", lambda payload: events.append(payload))
+
+    def fake_migrate(config, root, config_path=None, progress_cb=None):
+        if progress_cb:
+            progress_cb(
+                {
+                    "status": "copying",
+                    "message": "Copying files",
+                    "progress_pct": 50,
+                    "total_bytes": 100,
+                    "copied_bytes": 50,
+                }
+            )
+        return {
+            "bytes_required": 100,
+            "disk_free_bytes": 10_000,
+            "moved": {},
+            "completed_at": 0,
+            "storage_root": str(root),
+        }
+
+    monkeypatch.setattr(server_mod, "migrate_storage_root", fake_migrate)
+
+    class _HistoryFactory:
+        @staticmethod
+        def from_config(_):
+            return _FakeHistoryStore()
+
+    monkeypatch.setattr(server_mod, "HistoryStore", _HistoryFactory)
+    monkeypatch.setattr(server_mod, "get_config_path", lambda: None)
+
+    server._run_storage_migration_worker("D:/target")
+
+    statuses = [e.get("status") for e in events if e.get("type") == "storage_migration"]
+    assert "starting" in statuses
+    assert "completed" in statuses
+    assert server._get_active_storage_target() is None
+
+
+def test_run_storage_migration_worker_failure_emits_failed_event(monkeypatch):
+    server, _, _ = _make_server(monkeypatch)
+    events = []
+    monkeypatch.setattr(server, "_broadcast", lambda payload: events.append(payload))
+
+    monkeypatch.setattr(
+        server_mod,
+        "migrate_storage_root",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("disk exploded")),
+    )
+    monkeypatch.setattr(server_mod, "get_config_path", lambda: None)
+
+    server._run_storage_migration_worker("D:/target")
+
+    failed_events = [e for e in events if e.get("type") == "storage_migration" and e.get("status") == "failed"]
+    assert len(failed_events) == 1
+    assert "disk exploded" in failed_events[0]["message"]
+    assert server._get_active_storage_target() is None

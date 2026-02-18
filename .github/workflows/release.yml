@@ -1,0 +1,61 @@
+name: Release
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build keyvox wheel
+        run: |
+          pip install build
+          python -m build --wheel --outdir apps/desktop/src-tauri/resources/
+
+      - name: Download uv.exe into resources
+        shell: pwsh
+        run: |
+          $uv_version = "0.5.26"
+          New-Item -ItemType Directory -Force -Path apps/desktop/src-tauri/resources | Out-Null
+          Invoke-WebRequest `
+            -Uri "https://github.com/astral-sh/uv/releases/download/$uv_version/uv-x86_64-pc-windows-msvc.zip" `
+            -OutFile uv.zip
+          Expand-Archive uv.zip -DestinationPath uv_tmp -Force
+          Copy-Item uv_tmp/uv.exe apps/desktop/src-tauri/resources/uv.exe
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend deps
+        working-directory: apps/desktop
+        run: npm install
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Build Tauri NSIS installer
+        working-directory: apps/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ""
+        run: npm run tauri build -- --bundles nsis
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          generate_release_notes: true

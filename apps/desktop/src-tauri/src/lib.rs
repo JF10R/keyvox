@@ -1,11 +1,12 @@
 use serde::Serialize;
 use std::env;
 use std::ffi::OsString;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Default)]
 struct BackendState {
@@ -33,17 +34,53 @@ struct BackendPreflight {
     message: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NvidiaInfo {
+    gpu_name: String,
+    cuda_version: String,
+}
+
 fn is_child_running(child: &mut Child) -> bool {
     matches!(child.try_wait(), Ok(None))
 }
 
-fn resolve_backend_command(command: Option<String>) -> String {
-    command
-        .as_deref()
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .unwrap_or("keyvox")
-        .to_string()
+fn saved_install_keyvox_exe(app: &AppHandle) -> Option<PathBuf> {
+    let pointer = app.path().app_data_dir().ok()?.join("install_path.txt");
+    let dir = std::fs::read_to_string(pointer).ok()?;
+    Some(PathBuf::from(dir.trim()).join("env").join("Scripts").join("keyvox.exe"))
+}
+
+fn default_venv_keyvox_exe(app: &AppHandle) -> Option<PathBuf> {
+    Some(
+        app.path()
+            .app_data_dir()
+            .ok()?
+            .join("env")
+            .join("Scripts")
+            .join("keyvox.exe"),
+    )
+}
+
+fn resolve_backend_command(app: &AppHandle, command: Option<String>) -> String {
+    // 1. Explicit user override
+    if let Some(cmd) = command.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        return cmd.to_string();
+    }
+    // 2. Saved install path (chosen by user in first-run setup)
+    if let Some(exe) = saved_install_keyvox_exe(app) {
+        if exe.is_file() {
+            return exe.to_string_lossy().to_string();
+        }
+    }
+    // 3. Default AppData venv location
+    if let Some(exe) = default_venv_keyvox_exe(app) {
+        if exe.is_file() {
+            return exe.to_string_lossy().to_string();
+        }
+    }
+    // 4. PATH fallback (developer / pip-install workflow)
+    "keyvox".to_string()
 }
 
 fn has_path_components(binary: &str) -> bool {
@@ -184,6 +221,7 @@ fn backend_status(state: State<'_, BackendState>) -> Result<BackendStatus, Strin
 
 #[tauri::command]
 fn start_backend(
+    app: AppHandle,
     state: State<'_, BackendState>,
     preferred_port: u16,
     command: Option<String>,
@@ -209,7 +247,7 @@ fn start_backend(
         });
     }
 
-    let binary = resolve_backend_command(command);
+    let binary = resolve_backend_command(&app, command);
     let preflight = make_preflight(preferred_port, binary.clone());
     if !preflight.ok {
         return Err(preflight.message);
@@ -275,8 +313,8 @@ fn stop_backend(state: State<'_, BackendState>) -> Result<BackendStatus, String>
 }
 
 #[tauri::command]
-fn backend_preflight(preferred_port: u16, command: Option<String>) -> BackendPreflight {
-    make_preflight(preferred_port, resolve_backend_command(command))
+fn backend_preflight(app: AppHandle, preferred_port: u16, command: Option<String>) -> BackendPreflight {
+    make_preflight(preferred_port, resolve_backend_command(&app, command))
 }
 
 #[tauri::command]
@@ -292,6 +330,167 @@ fn set_tray_status(app: AppHandle, tooltip: String) -> Result<(), String> {
         tray.set_tooltip(Some(tooltip))
             .map_err(|err| format!("Failed to set tray tooltip: {err}"))?;
     }
+    Ok(())
+}
+
+#[tauri::command]
+fn get_default_install_dir(app: AppHandle) -> Result<String, String> {
+    app.path()
+        .app_data_dir()
+        .map(|p: std::path::PathBuf| p.to_string_lossy().to_string())
+        .map_err(|e: tauri::Error| e.to_string())
+}
+
+#[tauri::command]
+fn detect_nvidia() -> Option<NvidiaInfo> {
+    let output = Command::new("nvidia-smi").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse "CUDA Version: 12.4" from nvidia-smi header
+    let cuda_version = stdout
+        .lines()
+        .find_map(|line| {
+            let pos = line.find("CUDA Version:")?;
+            Some(line[pos + "CUDA Version:".len()..].trim().to_string())
+        })?;
+
+    // Query GPU name
+    let name_out = Command::new("nvidia-smi")
+        .args(["--query-gpu=name", "--format=csv,noheader"])
+        .output()
+        .ok()?;
+    let gpu_name = String::from_utf8_lossy(&name_out.stdout)
+        .lines()
+        .next()
+        .unwrap_or("Unknown GPU")
+        .trim()
+        .to_string();
+
+    Some(NvidiaInfo { gpu_name, cuda_version })
+}
+
+fn run_uv_streaming_sync(
+    app: &AppHandle,
+    uv_exe: &Path,
+    args: &[&str],
+) -> Result<(), String> {
+    let mut child = Command::new(uv_exe)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn uv: {e}"))?;
+
+    // Drain stdout in a background thread (prevents pipe buffer deadlock)
+    if let Some(stdout) = child.stdout.take() {
+        std::thread::spawn(move || {
+            let _ = BufReader::new(stdout).lines().count();
+        });
+    }
+
+    // Stream stderr lines to frontend as Tauri events
+    if let Some(stderr) = child.stderr.take() {
+        let app_clone = app.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().flatten() {
+                let _ = app_clone.emit("backend-install-progress", &line);
+            }
+        });
+    }
+
+    let status = child.wait().map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!("uv exited with status {status}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn install_backend(
+    app: AppHandle,
+    stack: String,
+    install_dir: String,
+) -> Result<(), String> {
+    let resource_dir = app.path().resource_dir().map_err(|e: tauri::Error| e.to_string())?;
+    let resources = resource_dir.join("resources");
+
+    let uv_exe = resources.join("uv.exe");
+    if !uv_exe.is_file() {
+        return Err("uv.exe not found in resources — this build may not include the installer.".to_string());
+    }
+
+    // Find keyvox wheel in resources/
+    let wheel = std::fs::read_dir(&resources)
+        .map_err(|e| e.to_string())?
+        .find_map(|entry| {
+            let path = entry.ok()?.path();
+            let name = path.file_name()?.to_str()?.to_string();
+            if name.starts_with("keyvox-") && name.ends_with(".whl") {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .ok_or("keyvox wheel not found in resources")?;
+
+    let install_path = PathBuf::from(&install_dir);
+    let venv_dir = install_path.join("env");
+    let python_exe = venv_dir.join("Scripts").join("python.exe");
+
+    let torch_index = if stack == "gpu" {
+        "https://download.pytorch.org/whl/cu124"
+    } else {
+        "https://download.pytorch.org/whl/cpu"
+    };
+
+    let extras = if stack == "gpu" {
+        "nvidia,singleton,server"
+    } else {
+        "singleton,server"
+    };
+    let wheel_spec = format!("{}[{}]", wheel.display(), extras);
+
+    let uv_str = uv_exe.to_string_lossy().to_string();
+    let venv_str = venv_dir.to_string_lossy().to_string();
+    let python_str = python_exe.to_string_lossy().to_string();
+
+    // Step 1: create venv
+    run_uv_streaming_sync(&app, &uv_exe, &["venv", &venv_str, "--python", "3.11"])?;
+
+    // Step 2: install torch
+    run_uv_streaming_sync(
+        &app,
+        &uv_exe,
+        &[
+            "pip", "install",
+            "--python", &python_str,
+            "torch",
+            "--index-url", torch_index,
+        ],
+    )?;
+
+    // Step 3: install keyvox wheel
+    run_uv_streaming_sync(
+        &app,
+        &uv_exe,
+        &["pip", "install", "--python", &python_str, &wheel_spec],
+    )?;
+
+    // Save install path so resolve_backend_command can find it on next launch
+    let app_data = app.path().app_data_dir().map_err(|e: tauri::Error| e.to_string())?;
+    std::fs::create_dir_all(&app_data).map_err(|e| e.to_string())?;
+    std::fs::write(app_data.join("install_path.txt"), install_dir.trim())
+        .map_err(|e| e.to_string())?;
+
+    // Emit a final completion event
+    let _ = app.emit("backend-install-progress", "[Keyvox] Installation complete.");
+
+    // Suppress unused variable warning
+    let _ = uv_str;
+
     Ok(())
 }
 
@@ -315,7 +514,10 @@ pub fn run() {
             start_backend,
             stop_backend,
             pick_storage_folder,
-            set_tray_status
+            set_tray_status,
+            get_default_install_dir,
+            detect_nvidia,
+            install_backend,
         ])
         .run(tauri::generate_context!())
         .expect("error while running keyvox desktop app");

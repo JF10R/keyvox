@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 export interface BackendStatus {
   running: boolean;
@@ -43,4 +44,32 @@ export async function pickStorageFolder(): Promise<string | null> {
 
 export async function setTrayStatus(tooltip: string): Promise<void> {
   await invoke("set_tray_status", { tooltip });
+}
+
+export interface NvidiaInfo {
+  gpuName: string;
+  cudaVersion: string;
+}
+
+export async function getDefaultInstallDir(): Promise<string> {
+  return invoke<string>("get_default_install_dir");
+}
+
+export async function detectNvidia(): Promise<NvidiaInfo | null> {
+  return invoke<NvidiaInfo | null>("detect_nvidia");
+}
+
+export async function installBackend(
+  stack: "gpu" | "cpu",
+  installDir: string,
+  onProgress: (line: string) => void,
+): Promise<void> {
+  const unlisten = await listen<string>("backend-install-progress", (e) => {
+    onProgress(e.payload);
+  });
+  try {
+    await invoke("install_backend", { stack, installDir });
+  } finally {
+    unlisten();
+  }
 }
