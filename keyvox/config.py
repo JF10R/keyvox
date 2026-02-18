@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Dict, Any
 
 
+CURRENT_CONFIG_VERSION = 1
+
 DEFAULT_CONFIG = {
+    "version": CURRENT_CONFIG_VERSION,
     "model": {
         "name": "large-v3-turbo",
         "device": "cuda",
@@ -55,6 +58,26 @@ def _merge_configs(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str,
         else:
             result[key] = value
     return result
+
+
+def migrate_config(cfg: dict, from_version: int) -> dict:
+    """Migrate config dict from from_version to CURRENT_CONFIG_VERSION.
+
+    Returns the migrated config dict (may be the same object, mutated).
+    """
+    migrations: list = [
+        # (from_ver, to_ver, migration_fn)
+        # v0 → v1: no structural changes, just set version field
+    ]
+
+    version = from_version
+    for (from_v, to_v, fn) in migrations:
+        if version == from_v:
+            cfg = fn(cfg)
+            version = to_v
+
+    cfg["version"] = CURRENT_CONFIG_VERSION
+    return cfg
 
 
 def _config_dirs() -> list[Path]:
@@ -128,6 +151,15 @@ def load_config(
             with open(config_path, "rb") as f:
                 user_config = tomllib.load(f)
             config = _merge_configs(config, user_config)
+
+            version = config.get("version", 0)
+            if version > CURRENT_CONFIG_VERSION:
+                print(f"[ERR] Config version {version} is newer than this Keyvox installation (max: {CURRENT_CONFIG_VERSION}).")
+                print(f"      Upgrade Keyvox or manually edit config to version {CURRENT_CONFIG_VERSION}.")
+                raise SystemExit(1)
+            if version < CURRENT_CONFIG_VERSION:
+                config = migrate_config(config, from_version=version)
+
             if not quiet:
                 print(f"[INFO] Loaded config from: {config_path}")
         except Exception as e:
